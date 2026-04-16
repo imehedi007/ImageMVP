@@ -47,12 +47,17 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
       `featuring a real ${data.bikeType} Yamaha motorcycle in a ${data.environment} setting with ${sceneDirection}. ` +
       `${wardrobeDirection} Color accents use tones of ${data.favoriteColor}. Mood feels ${selectedBehavior.emotionalTone}. ${compositionDirection}. ` +
       `${helmetDirection} ${poseDirection} ${randomizedPose} ${cameraFrame} ` +
-      `Preserve the exact facial identity from the reference photos: same face shape, eyes, nose, lips, skin tone, and age appearance. ` +
-      `Do not change ethnicity or gender presentation. Keep the strongest possible likeness to the uploaded person. ` +
+      `Preserve the exact identity of the uploaded person with maximum fidelity. The generated person must look like the same real individual from the reference photos. ` +
+      `Match the face extremely closely: same face shape, jawline, forehead, eyebrows, eyes, nose, lips, ears, skin tone, hairline, hairstyle, facial proportions, and age appearance. ` +
+      `Do not beautify, do not stylize, do not redesign the face, do not make the face more handsome, do not make the face more generic, and do not create a lookalike. ` +
+      `Do not change ethnicity, do not change gender presentation, and do not change the natural facial character of the person. ` +
+      `Prioritize identity preservation over cinematic styling. If there is any conflict between style and identity, preserve identity first. ` +
+      `Face visibility is critical: keep the face unobstructed, sharp, front-readable, naturally lit, and clearly recognizable. ` +
       `Do not crop the top of the head. Do not crop the feet. Show the full body from head to toe. ` +
       `Camera must be pulled back enough to show visible ground below both shoes and comfortable space above the head. ` +
       `Avoid tight crop, avoid waist-up crop, avoid knee crop, avoid ankle crop. ` +
-      `Do not place a helmet on the rider when helmet is disabled. Keep the face cleanly readable. ` +
+      `Do not place a helmet on the rider when helmet is disabled. Keep the face cleanly readable. No sunglasses, no face covering, no shadow hiding the eyes. ` +
+      `No face alteration, no face drift, no generic model face, no beauty-filter skin, no anime, no illustration, no cartoon, no CGI look. ` +
       `${realismDirection} ` +
       `Natural lighting, premium composition, expressive body language, authentic human energy, ` +
       `brand-campaign-ready, marketing-friendly, social-media-ready, emotionally engaging, polished editorial realism.`,
