@@ -43,30 +43,34 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
     socialDynamic,
     sceneDirection,
     imagePrompt:
-      `Cinematic lifestyle scene of ${subjectDirection}, with ${socialDynamic}, ` +
-      `featuring a real ${data.bikeType} Yamaha motorcycle in a ${data.environment} setting with ${sceneDirection}. ` +
-      `${wardrobeDirection} Color accents use tones of ${data.favoriteColor}. Mood feels ${selectedBehavior.emotionalTone}. ${compositionDirection}. ` +
-      `${helmetDirection} ${poseDirection} ${randomizedPose} ${cameraFrame} ` +
-      `Preserve the exact identity of the uploaded person with maximum fidelity. The generated person must look like the same real individual from the reference photos. ` +
-      `Match the face extremely closely: same face shape, jawline, forehead, eyebrows, eyes, nose, lips, ears, skin tone, hairline, hairstyle, facial proportions, and age appearance. ` +
-      `Do not beautify, do not stylize, do not redesign the face, do not make the face more handsome, do not make the face more generic, and do not create a lookalike. ` +
-      `Do not change ethnicity, do not change gender presentation, and do not change the natural facial character of the person. ` +
-      `Prioritize identity preservation over cinematic styling. If there is any conflict between style and identity, preserve identity first. ` +
-      `Face visibility is critical: keep the face unobstructed, sharp, front-readable, naturally lit, and clearly recognizable. ` +
-      `Generate an ultra-realistic human portrait image. The face must be indistinguishable from a real DSLR or smartphone photo of a real person. ` +
-      `Use natural human skin texture with visible pores, fine lines, subtle imperfections, realistic under-eye detail, natural lip texture, and true-to-life facial detail. ` +
-      `Avoid smooth skin, waxy skin, plastic skin, airbrushed skin, beauty-retouched skin, CGI skin, or game-rendered skin. ` +
-      `Maintain natural facial asymmetry. Do not make the face perfectly symmetrical. Keep real-life imperfection and believable human detail. ` +
-      `The background must be a believable real-world environment, naturally photographed, with lighting and color tone that match the subject. ` +
-      `Avoid artificial studio-looking compositing, fake CGI backgrounds, overly clean backdrops, or unrealistic environmental separation. ` +
-      `Do not crop the top of the head. Do not crop the feet. Show the full body from head to toe. ` +
-      `Camera must be pulled back enough to show visible ground below both shoes and comfortable space above the head. ` +
-      `Avoid tight crop, avoid waist-up crop, avoid knee crop, avoid ankle crop. ` +
-      `Do not place a helmet on the rider when helmet is disabled. Keep the face cleanly readable. No sunglasses, no face covering, no shadow hiding the eyes. ` +
-      `No face alteration, no face drift, no generic model face, no beauty-filter skin, no anime, no illustration, no cartoon, no CGI look. ` +
+      `Create a photorealistic cinematic lifestyle image of ${subjectDirection}. ` +
+      `The generated person must preserve the exact identity of the uploaded individual with very high fidelity and remain clearly recognizable as the same real person. ` +
+      `Identity priority is higher than styling. If there is any conflict between style and identity, preserve identity first. ` +
+      `Match the same face shape, jawline, forehead, eyebrows, eyes, nose, lips, ears, skin tone, hairline, hairstyle, facial proportions, and age appearance. ` +
+      `Preserve ethnicity, gender presentation, and the person's natural facial character. ` +
+      `Do not alter, beautify, stylize, idealize, redesign, or generalize the person's identity. ` +
+      `Render the face with realistic human detail: natural skin texture, visible pores, subtle fine lines, realistic under-eye detail, natural lip texture, and believable facial asymmetry. ` +
+      `The face must look like a real DSLR or premium smartphone photo of a real person, not a synthetic or stylized rendering. ` +
+      `Avoid waxy skin, plastic skin, over-smoothed skin, beauty-filter skin, airbrushed skin, CGI skin, or game-rendered skin. ` +
+      `Scene: a real ${data.bikeType} Yamaha motorcycle in a believable ${data.environment} setting with ${sceneDirection}. ` +
+      `${socialDynamic}. ${wardrobeDirection} ` +
+      `Color accents use tones of ${data.favoriteColor}. ` +
+      `Mood feels ${selectedBehavior.emotionalTone}. ${compositionDirection}. ` +
+      `Pose and framing: ${poseDirection} ${randomizedPose} ${cameraFrame}. ` +
+      `Show the full body from head to toe with visible ground below both feet and comfortable space above the head. ` +
+      `Do not crop the top of the head. Do not crop the feet. ` +
+      `Avoid tight crop, waist-up crop, knee crop, ankle crop, or any framing that makes the face too small to recognize clearly. ` +
+      `Keep the face unobstructed, sharp, naturally lit, and clearly recognizable. ` +
+      `Eyes should remain visible and facial features should be readable. ` +
+      `${helmetDirection} ` +
+      `Use soft natural lighting, realistic shadows, authentic reflections, natural perspective, and cinematic depth. ` +
+      `The image should feel like real premium lifestyle photography captured in one moment at one location. ` +
+      `The background must be a believable real-world environment with natural texture variation, realistic spatial depth, and lighting continuity with the subject and motorcycle. ` +
+      `The subject, motorcycle, and background must feel captured in one real photograph at the same location and time. ` +
+      `Avoid artificial studio-looking compositing, fake CGI backgrounds, unrealistic environmental separation, or overly clean backdrops. ` +
       `${realismDirection} ` +
-      `Natural lighting, premium composition, expressive body language, authentic human energy, ` +
-      `brand-campaign-ready, marketing-friendly, social-media-ready, emotionally engaging, polished editorial realism.`,
+      `Avoid identity drift, lookalike faces, generic model face, hidden eyes, sunglasses, face covering, anime style, cartoon style, illustration style, fake compositing, and synthetic-looking facial detail. ` +
+      `Final result should be photorealistic, authentic, emotionally engaging, and premium, while remaining grounded in real human facial detail and believable environmental realism.`,
     storyPrompt:
       `Create a concise JSON object with keys "summary" and "caption". The rider is ${data.name || "the user"}, ` +
       `with traits ${personalityTraits.join(", ")}. The emotional tone is ${selectedBehavior.emotionalTone}. ` +
