@@ -71,7 +71,7 @@ export function RideStoryExperience() {
       }
 
       const result = await response.json();
-      saveRideResult(result);
+      await saveRideResult(result);
       router.push("/result");
     } catch (issue) {
       console.error(issue);

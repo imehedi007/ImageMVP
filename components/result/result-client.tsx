@@ -14,7 +14,25 @@ export function ResultClient() {
   const [result, setResult] = useState<RideGenerationResponse | null>(null);
 
   useEffect(() => {
-    setResult(loadRideResult());
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const stored = await loadRideResult();
+
+        if (!cancelled) {
+          setResult(stored);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!result) {

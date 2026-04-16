@@ -53,6 +53,12 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
       `Do not change ethnicity, do not change gender presentation, and do not change the natural facial character of the person. ` +
       `Prioritize identity preservation over cinematic styling. If there is any conflict between style and identity, preserve identity first. ` +
       `Face visibility is critical: keep the face unobstructed, sharp, front-readable, naturally lit, and clearly recognizable. ` +
+      `Generate an ultra-realistic human portrait image. The face must be indistinguishable from a real DSLR or smartphone photo of a real person. ` +
+      `Use natural human skin texture with visible pores, fine lines, subtle imperfections, realistic under-eye detail, natural lip texture, and true-to-life facial detail. ` +
+      `Avoid smooth skin, waxy skin, plastic skin, airbrushed skin, beauty-retouched skin, CGI skin, or game-rendered skin. ` +
+      `Maintain natural facial asymmetry. Do not make the face perfectly symmetrical. Keep real-life imperfection and believable human detail. ` +
+      `The background must be a believable real-world environment, naturally photographed, with lighting and color tone that match the subject. ` +
+      `Avoid artificial studio-looking compositing, fake CGI backgrounds, overly clean backdrops, or unrealistic environmental separation. ` +
       `Do not crop the top of the head. Do not crop the feet. Show the full body from head to toe. ` +
       `Camera must be pulled back enough to show visible ground below both shoes and comfortable space above the head. ` +
       `Avoid tight crop, avoid waist-up crop, avoid knee crop, avoid ankle crop. ` +

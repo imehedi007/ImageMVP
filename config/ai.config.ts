@@ -1,4 +1,4 @@
-export type AIProviderName = "openai" | "replicate" | "stability" | "custom";
+export type AIProviderName = "openai" | "openrouter" | "replicate" | "stability" | "custom";
 
 export interface AIRuntimeConfig {
   provider: AIProviderName;
@@ -12,6 +12,7 @@ export interface AIRuntimeConfig {
   imageSize: string;
   imageQuality: string;
   inputFidelity: string;
+  imageAspectRatio: string;
 }
 
 export function getAIConfig(): AIRuntimeConfig {
@@ -28,7 +29,8 @@ export function getAIConfig(): AIRuntimeConfig {
     maxReferenceImages: Number(process.env.AI_MAX_REFERENCE_IMAGES || "1"),
     imageSize: process.env.AI_IMAGE_SIZE || "1024x1536",
     imageQuality: process.env.AI_IMAGE_QUALITY || "high",
-    inputFidelity: process.env.AI_INPUT_FIDELITY || "high"
+    inputFidelity: process.env.AI_INPUT_FIDELITY || "high",
+    imageAspectRatio: process.env.AI_IMAGE_ASPECT_RATIO || "4:5"
   };
 }
 

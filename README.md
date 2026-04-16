@@ -19,14 +19,16 @@ cp .env.example .env.local
 3. Set at least:
 
 ```bash
-AI_PROVIDER=openai
+AI_PROVIDER=openrouter
 AI_API_KEY=your_api_key
-AI_TEXT_MODEL=gpt-4o-mini
-AI_IMAGE_MODEL=gpt-image-1
+AI_TEXT_MODEL=google/gemini-2.5-flash
+AI_IMAGE_MODEL=google/gemini-3.1-flash-image-preview
 AI_RESPONSES_MODEL=gpt-4o-mini
+AI_API_URL=https://openrouter.ai/api/v1
 AI_OPENAI_USE_RESPONSES_IDENTITY=false
 AI_MAX_REFERENCE_IMAGES=3
-AI_IMAGE_SIZE=1024x1536
+AI_IMAGE_SIZE=2K
+AI_IMAGE_ASPECT_RATIO=4:5
 AI_IMAGE_QUALITY=high
 AI_INPUT_FIDELITY=high
 ADMIN_USERNAME=admin
@@ -47,3 +49,4 @@ npm run dev
 - The API route lives at `app/api/generate/route.ts`.
 - Company content can be managed from `/admin` with the admin credentials from `.env.local`.
 - If your OpenAI org is not verified yet, keep `AI_OPENAI_USE_RESPONSES_IDENTITY=false` to avoid the verified-only Responses image path.
+- The default setup now targets OpenRouter with `google/gemini-3.1-flash-image-preview` for image generation.
