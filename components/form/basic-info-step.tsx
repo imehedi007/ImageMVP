@@ -34,12 +34,24 @@ export function BasicInfoStep({ data, previewUrls, onFileChange, update }: Props
         </Field>
 
         <Field label="Age">
-          <InputWithIcon
-            icon="calendar"
-            placeholder="Enter your age"
-            value={data.ageRange}
-            onChange={(event) => update("ageRange", event.target.value)}
-          />
+          <div className="relative">
+            <FieldIcon
+              type="calendar"
+              className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-white/48"
+            />
+            <select
+              value={data.ageRange}
+              onChange={(event) => update("ageRange", event.target.value)}
+              className="h-[52px] w-full appearance-none rounded-[11px] border border-white/[0.065] bg-transparent pl-12 pr-10 text-[0.95rem] text-white outline-none transition focus:border-white/16"
+            >
+              {Array.from({ length: 53 }, (_, index) => index + 8).map((age) => (
+                <option key={age} value={String(age)} className=" text-white">
+                  {age}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/45">⌄</span>
+          </div>
         </Field>
 
         <Field label="Mobile Number">

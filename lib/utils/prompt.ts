@@ -32,6 +32,9 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
   const realismDirection =
     content.settings.realismDirection ||
     "Ultra photorealistic motorcycle campaign image with real materials and no cartoon styling.";
+  const ageDirection = data.ageRange
+    ? `The rider must look exactly around ${data.ageRange} years old. Preserve an age-appropriate face, skin, body proportions, and overall appearance for a real ${data.ageRange}-year-old person. Do not make the person look older, more mature, or like a person in their twenties if the provided age is lower.`
+    : "";
   const randomizedPose =
     content.settings.poseVariants.length > 0
       ? content.settings.poseVariants[Math.floor(Math.random() * content.settings.poseVariants.length)]
@@ -49,6 +52,7 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
       `Match the same face shape, jawline, forehead, eyebrows, eyes, nose, lips, ears, skin tone, hairline, hairstyle, facial proportions, and age appearance. ` +
       `Preserve ethnicity, gender presentation, and the person's natural facial character. ` +
       `Do not alter, beautify, stylize, idealize, redesign, or generalize the person's identity. ` +
+      `${ageDirection} ` +
       `Render the face with realistic human detail: natural skin texture, visible pores, subtle fine lines, realistic under-eye detail, natural lip texture, and believable facial asymmetry. ` +
       `The face must look like a real DSLR or premium smartphone photo of a real person, not a synthetic or stylized rendering. ` +
       `Avoid waxy skin, plastic skin, over-smoothed skin, beauty-filter skin, airbrushed skin, CGI skin, or game-rendered skin. ` +
