@@ -37,14 +37,14 @@ export function ResultClient() {
 
   if (!result) {
     return (
-      <div className="mx-auto max-w-xl rounded-[32px] border border-white/80 bg-white/75 p-8 text-center shadow-glow backdrop-blur">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">No ride story yet</h1>
-        <p className="mt-3 text-sm leading-7 text-slate-600">
+      <div className="mx-auto my-auto max-w-xl rounded-[26px] border border-white/10 bg-[#071427] p-8 text-center text-white shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+        <h1 className="text-3xl font-black tracking-tight">No ride story yet</h1>
+        <p className="mt-3 text-sm leading-7 text-white/58">
           Generate your personalized scene first, then come back here for the share-ready result.
         </p>
         <Link
           href="/"
-          className="mt-6 inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
+          className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5"
         >
           Start the experience
         </Link>

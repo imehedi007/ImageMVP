@@ -16,64 +16,73 @@ export function ResultCard({ result, onRegenerate }: Props) {
   const [showPrompt, setShowPrompt] = useState(false);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <div className="overflow-hidden rounded-[32px] border border-white/80 bg-white/75 p-3 shadow-glow backdrop-blur">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] bg-slate-100">
-          <Image src={result.imageUrl} alt="Generated ride story scene" fill className="object-contain" />
+    <section className="mx-auto grid min-h-screen w-full max-w-7xl items-top items-start gap-8 py-6 lg:grid-cols-[0.92fr_1.08fr] lg:py-10">
+      <div className="rounded-[26px] border border-white/10 bg-[#071427] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] bg-[#0b1728]">
+          <Image src={result.imageUrl} alt="Generated Yamaha persona card" fill className="object-contain" priority />
         </div>
       </div>
 
-      <div className="space-y-5 rounded-[32px] border border-white/80 bg-white/75 p-6 shadow-glow backdrop-blur">
-        <div className="space-y-3">
-          <span className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white">
+      <div className="space-y-4 text-white">
+        <div className="space-y-6">
+          <span className="inline-flex rounded-full bg-[#24255f] px-4 py-2 text-xs font-light  uppercase text-[#b3a7ff]">
             Your Result
           </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Your ride personality is ready.</h1>
-          <p className="text-base leading-7 text-slate-600">{result.summary}</p>
+          <h1 className="max-w-[720px] text-[clamp(1.6rem,3.6vw,3rem)] font-black leading-[1.12] tracking-[-0.055em]">
+            Your ride personality is ready.
+          </h1>
+          <p className="max-w-[700px] text-md text-white/62">
+            {result.summary}
+          </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MetaCard label="Traits" value={result.profile.personalityTraits.join(", ")} />
-          <MetaCard label="Mood" value={result.profile.emotionalTone} />
-          <MetaCard label="Friend dynamic" value={result.profile.socialDynamic} />
-          <MetaCard label="Scene direction" value={result.profile.sceneDirection} />
+        <div className="h-px w-full bg-white/12" />
+
+        <div className="space-y-6">
+          <h2 className="text-sm font-normal uppercase  text-[#a69bff]">
+            Share your persona card
+          </h2>
+          <ResultActions result={result} />
         </div>
 
-        <div className="rounded-[24px] bg-slate-950 p-5 text-white">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Caption</div>
-          <p className="mt-2 text-lg font-medium">{result.caption}</p>
+        <div className="rounded-[18px] border border-[#675dff]/80 bg-[#071427] p-4">
+          <div className="flex items-center gap-3 text-sm font-normal uppercase text-[#a69bff]">
+            <span className="text-lg">🏆</span>
+            Active Contest
+          </div>
+          {/* <h3 className="mt-6 text-[16px] font-black uppercase leading-tight tracking-[0.02em] text-white">
+            Win a Yamaha R15M
+          </h3> */}
+          <p className="mt-3 text-sm text-white/40">
+            Share your Persona Card with #MyYamahaPersona on any platform. The most creative share wins a brand-new
+            Yamaha R15M.
+          </p>
+          {/* <p className="mt-5 text-[14px] font-medium text-white/58">
+            Contest closes August 31, 2025.
+          </p> */}
         </div>
 
         {result.providerError ? (
-          <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+          <div className="rounded-[16px] border border-amber-300/25 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
             AI fallback used: {result.providerError}
           </div>
         ) : null}
 
-        <ResultActions result={result} onRegenerate={onRegenerate} />
-
-        <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Prompt</div>
-              <p className="text-sm text-slate-500">Helpful for debugging or remixing the experience.</p>
-            </div>
-            <Button variant="ghost" onClick={() => setShowPrompt((current) => !current)}>
-              {showPrompt ? "Hide" : "Show"}
-            </Button>
-          </div>
-          {showPrompt ? <p className="mt-4 text-sm leading-7 text-slate-600">{result.prompt}</p> : null}
+        <div className="flex flex-wrap gap-3">
+          <Button variant="dark" onClick={onRegenerate} className="rounded-[12px] px-7">
+            Regenerate
+          </Button>
+          <Button variant="dark" onClick={() => setShowPrompt((current) => !current)} className="rounded-[12px] px-7">
+            {showPrompt ? "Hide Prompt" : "Show Prompt"}
+          </Button>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function MetaCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[22px] border border-slate-200 bg-white p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-900">{value}</div>
-    </div>
+        {showPrompt ? (
+          <div className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-white/58">
+            {result.prompt}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }

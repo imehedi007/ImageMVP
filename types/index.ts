@@ -6,6 +6,7 @@ export type CompanionMode = "friend" | "solo";
 export interface BasicInfo {
   name: string;
   ageRange: string;
+  phone: string;
   vibe: string;
 }
 
@@ -52,6 +53,7 @@ export interface SelectOption {
   id: string;
   label: string;
   description: string;
+  image?: string;
 }
 
 export interface EnvironmentOption extends SelectOption {
