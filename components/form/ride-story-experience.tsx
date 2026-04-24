@@ -10,6 +10,7 @@ import { GenerationStatusScreen } from "@/components/ui/generation-status-screen
 import { useExperienceContent } from "@/hooks/useExperienceContent";
 import { useFormState } from "@/hooks/useFormState";
 import { useImageUpload } from "@/hooks/useImageUpload";
+import { calculateAgeFromDateOfBirth } from "@/lib/utils/age";
 import { saveRideResult } from "@/lib/utils/storage";
 
 const TOTAL_STEPS = 3;
@@ -21,6 +22,12 @@ export function RideStoryExperience() {
   const { content, loading: contentLoading, error: contentError } = useExperienceContent();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpStatusMessage, setOtpStatusMessage] = useState("");
+  const [otpError, setOtpError] = useState("");
   const [defaultsHydrated, setDefaultsHydrated] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -35,7 +42,6 @@ export function RideStoryExperience() {
       environment: (content.environments[0]?.id as typeof current.environment) || current.environment,
       favoriteColor: content.settings.defaultFavoriteColor || content.colors[0] || current.favoriteColor,
       behavior: (content.behaviorQuestion.options[0]?.id as typeof current.behavior) || current.behavior,
-      ageRange: content.settings.defaultAgeRange || current.ageRange,
       vibe: current.vibe || content.settings.defaultVibe || current.vibe
     }));
     setDefaultsHydrated(true);
@@ -45,6 +51,102 @@ export function RideStoryExperience() {
     () => content?.bikes.find((bike) => bike.name === data.bikeType)?.name || data.bikeType,
     [content?.bikes, data.bikeType]
   );
+
+  function handleDateOfBirthChange(value: string) {
+    update("dateOfBirth", value);
+
+    try {
+      const nextAge = value ? String(calculateAgeFromDateOfBirth(value)) : "";
+      update("ageRange", nextAge);
+      setOtpError("");
+    } catch (issue) {
+      update("ageRange", "");
+      if (value) {
+        setOtpError(issue instanceof Error ? issue.message : "Enter a valid date of birth.");
+      }
+    }
+
+    resetOtpState();
+  }
+
+  function resetOtpState() {
+    setOtpCode("");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpStatusMessage("");
+    setOtpError("");
+  }
+
+  async function handleSendOtp() {
+    try {
+      setOtpBusy(true);
+      setOtpError("");
+      setOtpStatusMessage("");
+
+      const response = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          phone: data.phone
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "OTP could not be sent.");
+      }
+
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtpStatusMessage("OTP sent successfully. Enter the 4-digit code to verify.");
+    } catch (issue) {
+      setOtpError(issue instanceof Error ? issue.message : "OTP could not be sent.");
+    } finally {
+      setOtpBusy(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
+    try {
+      setOtpBusy(true);
+      setOtpError("");
+      setOtpStatusMessage("");
+
+      const response = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: data.name,
+          phone: data.phone,
+          age: data.ageRange,
+          dateOfBirth: data.dateOfBirth,
+          otp: otpCode
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "OTP verification failed.");
+      }
+
+      if (result.phone) {
+        update("phone", result.phone);
+      }
+      setOtpVerified(true);
+      setOtpStatusMessage("Phone number verified successfully.");
+    } catch (issue) {
+      setOtpVerified(false);
+      setOtpError(issue instanceof Error ? issue.message : "OTP verification failed.");
+    } finally {
+      setOtpBusy(false);
+    }
+  }
 
   async function handleGenerate() {
     try {
@@ -83,7 +185,7 @@ export function RideStoryExperience() {
   }
 
   const canContinueProfile =
-    Boolean(data.name.trim()) && Boolean(data.phone.trim()) && Boolean(previewUrls[0]);
+    Boolean(data.name.trim()) && Boolean(data.phone.trim()) && Boolean(previewUrls[0]) && otpVerified;
   const canGenerate = Boolean(data.environment) && !loading;
 
   if (loading) {
@@ -151,7 +253,23 @@ export function RideStoryExperience() {
       onFileChange={async (nextFiles) => {
         await updateFiles(nextFiles, 1);
       }}
-      update={update}
+      update={(key, value) => {
+        update(key, value);
+
+        if (key === "name" || key === "phone") {
+          resetOtpState();
+        }
+      }}
+      onDateOfBirthChange={handleDateOfBirthChange}
+      otpCode={otpCode}
+      onOtpChange={setOtpCode}
+      onSendOtp={handleSendOtp}
+      onVerifyOtp={handleVerifyOtp}
+      otpSent={otpSent}
+      otpVerified={otpVerified}
+      otpBusy={otpBusy}
+      otpStatusMessage={otpStatusMessage}
+      otpError={otpError}
     />,
     <SelectionStep
       key="bike"
@@ -217,6 +335,10 @@ export function RideStoryExperience() {
       </div>
     </section>
   );
+}
+
+function normalizeAgeValue(value: string) {
+  return value.match(/\d+/)?.[0] || value;
 }
 
 function LandingStepCard({

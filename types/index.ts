@@ -5,6 +5,7 @@ export type CompanionMode = "friend" | "solo";
 
 export interface BasicInfo {
   name: string;
+  dateOfBirth: string;
   ageRange: string;
   phone: string;
   vibe: string;

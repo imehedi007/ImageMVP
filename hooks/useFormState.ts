@@ -6,7 +6,8 @@ import { RideFormData } from "@/types";
 
 const initialData: RideFormData = {
   name: "",
-  ageRange: "18-24",
+  dateOfBirth: "",
+  ageRange: "",
   phone: "",
   vibe: "",
   bikeType: "Neo Cafe",

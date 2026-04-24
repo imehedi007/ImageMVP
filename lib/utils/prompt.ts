@@ -1,6 +1,7 @@
 import { ExperienceContent, RideFormData, RidePromptBundle } from "@/types";
 
 export function buildRidePromptBundle(data: RideFormData, content: ExperienceContent): RidePromptBundle {
+  const resolvedAge = data.ageRange || deriveAgeFromDateOfBirth(data.dateOfBirth);
   const environment = content.environments.find((item) => item.id === data.environment);
   const mapped = content.behaviorQuestion.options.find((item) => item.id === data.behavior);
   const companionMode = content.settings.companionMode;
@@ -32,8 +33,8 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
   const realismDirection =
     content.settings.realismDirection ||
     "Ultra photorealistic motorcycle campaign image with real materials and no cartoon styling.";
-  const ageDirection = data.ageRange
-    ? `The rider must look exactly around ${data.ageRange} years old. Preserve an age-appropriate face, skin, body proportions, and overall appearance for a real ${data.ageRange}-year-old person. Do not make the person look older, more mature, or like a person in their twenties if the provided age is lower.`
+  const ageDirection = resolvedAge
+    ? `The rider must look exactly around ${resolvedAge} years old. Preserve an age-appropriate face, skin, body proportions, and overall appearance for a real ${resolvedAge}-year-old person. Do not make the person look older, more mature, or like a person in their twenties if the provided age is lower.`
     : "";
   const randomizedPose =
     content.settings.poseVariants.length > 0
@@ -84,6 +85,28 @@ export function buildRidePromptBundle(data: RideFormData, content: ExperienceCon
       `${data.name || "You"} ride like someone ${personalityTraits.join(", ")}, turning every ${data.environment} route into a shared memory.`,
     captionSeed: "Just found my ride personality. #RideStory #MyBikeMood"
   };
+}
+
+function deriveAgeFromDateOfBirth(dateOfBirth?: string) {
+  if (!dateOfBirth) {
+    return "";
+  }
+
+  const dob = new Date(dateOfBirth);
+
+  if (Number.isNaN(dob.getTime())) {
+    return "";
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+
+  return age >= 0 ? String(age) : "";
 }
 
 export function fallbackStoryText(data: RideFormData, bundle: RidePromptBundle) {

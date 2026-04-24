@@ -31,6 +31,15 @@ AI_IMAGE_SIZE=1K
 AI_IMAGE_ASPECT_RATIO=4:5
 AI_IMAGE_QUALITY=high
 AI_INPUT_FIDELITY=high
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=ride_story
+DB_CONNECTION_LIMIT=10
+OTP_SECRET=change_me
+BULKSMSBD_API_KEY=your_bulksmsbd_api_key
+BULKSMSBD_SENDER_ID=your_sender_id
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change_me
 ADMIN_SESSION_SECRET=change_me_to_a_long_random_secret
@@ -42,11 +51,20 @@ ADMIN_SESSION_SECRET=change_me_to_a_long_random_secret
 npm run dev
 ```
 
+5. Create the local MySQL database:
+
+```sql
+CREATE DATABASE ride_story;
+```
+
+Then run the schema from [database/schema.sql](/Users/esmailkhalifa/Documents/GitHub/Image-MVP/database/schema.sql).
+
 ## Notes
 
-- If no `AI_API_KEY` is configured, the app returns a polished mock image so the full UX can still be tested locally.
+- If no `GEMINI_API_KEY` is configured, the app returns a polished mock image so the full UX can still be tested locally.
 - Providers live under `lib/ai/providers` and can be swapped via `AI_PROVIDER` without changing UI or route logic.
 - The API route lives at `app/api/generate/route.ts`.
+- OTP now uses `/api/otp/send` and `/api/otp/verify`.
+- Users are stored in MySQL and each generation stores phone, bike choice, and environment in `generation_logs`.
 - Company content can be managed from `/admin` with the admin credentials from `.env.local`.
-- If no `GEMINI_API_KEY` is configured, the app returns a polished mock image so the full UX can still be tested locally.
 - The default setup now targets the official Gemini API with `gemini-3.1-flash-image-preview` for image generation.

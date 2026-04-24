@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAIProvider } from "@/lib/ai";
 import { getAIConfig, hasUsableAIConfig } from "@/config/ai.config";
 import { readExperienceContent } from "@/lib/content";
+import {
+  completeGenerationLog,
+  createGenerationLog,
+  failGenerationLog,
+  findVerifiedUserByPhone
+} from "@/lib/server/mysql";
+import { normalizeBangladeshPhone } from "@/lib/server/otp";
 import { createMockRideStoryImage } from "@/lib/utils/mock-image";
 import { buildRidePromptBundle, fallbackStoryText } from "@/lib/utils/prompt";
 import { RideFormData, RideGenerationResponse } from "@/types";
@@ -58,15 +65,34 @@ export async function POST(request: NextRequest) {
     const imageFiles = photos.filter((item): item is File => item instanceof File);
     const file = imageFiles[0];
     const content = await readExperienceContent();
+    const normalizedPhone = normalizeBangladeshPhone(payload.phone);
+    const verifiedUser = await findVerifiedUserByPhone(normalizedPhone);
+
+    if (!verifiedUser) {
+      return NextResponse.json(
+        {
+          message: "Verify your phone number before generating an image."
+        },
+        { status: 403 }
+      );
+    }
 
     const bundle = buildRidePromptBundle(payload, content);
     const fallback = fallbackStoryText(payload, bundle);
     const config = getAIConfig();
+    const generationLogId = await createGenerationLog({
+      userId: verifiedUser.id,
+      phone: verifiedUser.phone,
+      bikeType: payload.bikeType,
+      environment: payload.environment,
+      provider: config.provider
+    });
 
     let imageUrl = createMockRideStoryImage(bundle.imagePrompt, payload.favoriteColor);
     let summary = fallback.summary;
     let caption = fallback.caption;
     let providerError: string | null = null;
+    let imageGenerated = false;
 
     if (hasUsableAIConfig(config)) {
       try {
@@ -87,12 +113,19 @@ export async function POST(request: NextRequest) {
 
         if (imageResult.status === "fulfilled") {
           imageUrl = imageResult.value;
+          imageGenerated = true;
         } else if (!providerError) {
           providerError = imageResult.reason instanceof Error ? imageResult.reason.message : "Image generation failed.";
         }
       } catch (error) {
         providerError = error instanceof Error ? error.message : "Unexpected AI provider error.";
       }
+    }
+
+    if (providerError && !imageGenerated) {
+      await failGenerationLog(generationLogId, providerError);
+    } else {
+      await completeGenerationLog(generationLogId);
     }
 
     const response: RideGenerationResponse = {

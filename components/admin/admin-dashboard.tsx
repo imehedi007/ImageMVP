@@ -10,6 +10,38 @@ interface AdminDashboardProps {
   initialAuthenticated: boolean;
 }
 
+interface DashboardOverview {
+  totalUsers: number;
+  totalVerifiedUsers: number;
+  totalGenerations: number;
+  todayGenerations: number;
+}
+
+interface DashboardSearchRow {
+  userId: number;
+  name: string;
+  phone: string;
+  age: number;
+  totalGenerations: number;
+  lastGeneratedAt: string | null;
+  lastBike: string | null;
+  lastEnvironment: string | null;
+}
+
+interface RecentGenerationRow {
+  name: string;
+  phone: string;
+  age: number;
+  bikeType: string;
+  environment: string;
+  status: string;
+  provider: string;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+type AdminTab = "overview" | "users" | "bikes" | "environments" | "settings";
+
 const emptyContent: ExperienceContent = {
   hero: {
     eyebrow: "",
@@ -41,15 +73,34 @@ const emptyContent: ExperienceContent = {
   }
 };
 
+const navItems: Array<{ id: AdminTab; label: string; hint: string }> = [
+  { id: "overview", label: "Overview", hint: "Stats & activity" },
+  { id: "users", label: "Users", hint: "Phone search" },
+  { id: "bikes", label: "Bikes", hint: "Bike content" },
+  { id: "environments", label: "Env", hint: "Scene content" },
+  { id: "settings", label: "Settings", hint: "Prompt config" }
+];
+
 export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [content, setContent] = useState<ExperienceContent>(emptyContent);
   const [loading, setLoading] = useState(initialAuthenticated);
+  const [statsLoading, setStatsLoading] = useState(initialAuthenticated);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [searchPhone, setSearchPhone] = useState("");
+  const [overview, setOverview] = useState<DashboardOverview>({
+    totalUsers: 0,
+    totalVerifiedUsers: 0,
+    totalGenerations: 0,
+    todayGenerations: 0
+  });
+  const [searchResults, setSearchResults] = useState<DashboardSearchRow[]>([]);
+  const [recentRows, setRecentRows] = useState<RecentGenerationRow[]>([]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -57,6 +108,7 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
     }
 
     void loadContent();
+    void loadStats();
   }, [authenticated]);
 
   async function loadContent() {
@@ -81,6 +133,38 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
       setError("Could not load admin content.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadStats(phone = "") {
+    try {
+      setStatsLoading(true);
+      const query = phone ? `?phone=${encodeURIComponent(phone)}` : "";
+      const response = await fetch(`/api/admin/stats${query}`);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setAuthenticated(false);
+          return;
+        }
+
+        throw new Error("Failed to load dashboard stats.");
+      }
+
+      const data = (await response.json()) as {
+        overview: DashboardOverview;
+        searchResults: DashboardSearchRow[];
+        recentRows: RecentGenerationRow[];
+      };
+
+      setOverview(data.overview);
+      setSearchResults(data.searchResults);
+      setRecentRows(data.recentRows);
+    } catch (issue) {
+      console.error(issue);
+      setError("Could not load admin stats.");
+    } finally {
+      setStatsLoading(false);
     }
   }
 
@@ -111,6 +195,7 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
     setAuthenticated(false);
     setContent(emptyContent);
     setSuccess("");
+    setActiveTab("overview");
   }
 
   async function handleSave() {
@@ -139,10 +224,12 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
     }
   }
 
-  function updateHero<K extends keyof ExperienceContent["hero"]>(
-    key: K,
-    value: ExperienceContent["hero"][K]
-  ) {
+  async function handleSearch() {
+    await loadStats(searchPhone);
+    setActiveTab("users");
+  }
+
+  function updateHero<K extends keyof ExperienceContent["hero"]>(key: K, value: ExperienceContent["hero"][K]) {
     setContent((current) => ({
       ...current,
       hero: {
@@ -171,26 +258,24 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
 
   if (!authenticated) {
     return (
-      <div className="mx-auto w-full max-w-md rounded-[32px] border border-white/80 bg-white/80 p-8 shadow-glow backdrop-blur">
+      <div className="mx-auto w-full max-w-md rounded-[36px] border border-white/10 bg-[#091222] p-8 text-white shadow-[0_30px_80px_rgba(1,8,20,0.55)]">
         <div className="space-y-3">
-          <span className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
-            Admin
+          <span className="inline-flex rounded-full border border-[#8f96ff]/20 bg-[#8f96ff]/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a8adff]">
+            Owner Access
           </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Company dashboard login</h1>
-          <p className="text-sm leading-7 text-slate-600">
-            Sign in to edit bikes, colors, environments, question content, and the solo vs friend image mode.
+          <h1 className="text-3xl font-semibold tracking-tight">Yamaha AI dashboard</h1>
+          <p className="text-sm leading-7 text-white/60">
+            Sign in to see stats, search users, export CSV, and manage bikes plus environment content.
           </p>
         </div>
         <div className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Username</label>
+          <Field label="Username">
             <Input value={username} onChange={(event) => setUsername(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Password</label>
+          </Field>
+          <Field label="Password">
             <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </div>
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+          </Field>
+          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
           <Button className="w-full" onClick={handleLogin}>
             Log in
           </Button>
@@ -201,579 +286,621 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
 
   if (loading) {
     return (
-      <div className="rounded-[32px] border border-white/80 bg-white/80 p-8 shadow-glow backdrop-blur">
-        <div className="h-8 w-56 animate-pulse rounded-full bg-slate-200" />
-        <div className="mt-4 h-4 w-96 animate-pulse rounded-full bg-slate-100" />
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <div className="h-48 animate-pulse rounded-[28px] bg-slate-100" />
-          <div className="h-48 animate-pulse rounded-[28px] bg-slate-100" />
+      <div className="rounded-[36px] border border-white/10 bg-[#091222] p-8 text-white shadow-[0_30px_80px_rgba(1,8,20,0.55)]">
+        <div className="h-8 w-56 animate-pulse rounded-full bg-white/10" />
+        <div className="mt-4 h-4 w-96 animate-pulse rounded-full bg-white/5" />
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="h-40 animate-pulse rounded-[28px] bg-white/5" />
+          <div className="h-40 animate-pulse rounded-[28px] bg-white/5" />
+          <div className="h-40 animate-pulse rounded-[28px] bg-white/5" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[32px] border border-white/80 bg-slate-950 p-6 text-white shadow-glow">
-        <div>
-          <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">
-            Admin Dashboard
+    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+      <aside className="rounded-[32px] border border-white/10 bg-[#091222] p-5 text-white shadow-[0_30px_80px_rgba(1,8,20,0.45)] lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto">
+        <div className="border-b border-white/10 pb-5">
+          <span className="inline-flex rounded-full border border-[#8f96ff]/20 bg-[#8f96ff]/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a8adff]">
+            Owner panel
           </span>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">Manage experience content</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-300">
-            Update the company-facing content here. Changes affect the public quiz and the AI prompt behavior.
-          </p>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Yamaha AI Admin</h1>
+          <p className="mt-2 text-sm leading-6 text-white/55">Stats, users, bike cards, environment content, and prompt settings.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={handleLogout}>
+
+        <nav className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActiveTab(item.id)}
+              className={`flex w-full items-start justify-between rounded-[20px] px-4 py-3 text-left transition ${
+                activeTab === item.id
+                  ? "bg-[#8f96ff]/15 text-white shadow-[inset_0_0_0_1px_rgba(143,150,255,0.22)]"
+                  : "bg-transparent text-white/65 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <div>
+                <div className="text-sm font-semibold">{item.label}</div>
+                <div className="mt-1 text-xs text-white/45">{item.hint}</div>
+              </div>
+              <span className="text-white/35">→</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+          <a
+            href="/api/admin/export"
+            className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+          >
+            Export CSV
+          </a>
+          <Button variant="dark" className="w-full" onClick={handleLogout}>
             Log out
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save changes"}
-          </Button>
         </div>
-      </div>
+      </aside>
 
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-      {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
-
-      <Section title="Hero copy">
-        <Field label="Eyebrow">
-          <Input value={content.hero.eyebrow} onChange={(event) => updateHero("eyebrow", event.target.value)} />
-        </Field>
-        <Field label="Title">
-          <textarea
-            className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-            value={content.hero.title}
-            onChange={(event) => updateHero("title", event.target.value)}
-          />
-        </Field>
-        <Field label="Description">
-          <textarea
-            className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-            value={content.hero.description}
-            onChange={(event) => updateHero("description", event.target.value)}
-          />
-        </Field>
-        <Field label="Highlights">
-          <ArrayEditor
-            items={content.hero.highlights}
-            onChange={(items) => updateHero("highlights", items)}
-            addLabel="Add highlight"
-          />
-        </Field>
-        <Field label="Virality title">
-          <Input
-            value={content.hero.viralityTitle}
-            onChange={(event) => updateHero("viralityTitle", event.target.value)}
-          />
-        </Field>
-        <Field label="Virality description">
-          <textarea
-            className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-            value={content.hero.viralityDescription}
-            onChange={(event) => updateHero("viralityDescription", event.target.value)}
-          />
-        </Field>
-      </Section>
-
-      <Section title="Prompt settings">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Companion mode">
-            <select
-              className="w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm shadow-sm outline-none"
-              value={content.settings.companionMode}
-              onChange={(event) => updateSettings("companionMode", event.target.value as "friend" | "solo")}
-            >
-              <option value="friend">Friend</option>
-              <option value="solo">Solo</option>
-            </select>
-          </Field>
-          <Field label="Default age range">
-            <Input
-              value={content.settings.defaultAgeRange}
-              onChange={(event) => updateSettings("defaultAgeRange", event.target.value)}
-            />
-          </Field>
-          <Field label="Default vibe">
-            <Input
-              value={content.settings.defaultVibe}
-              onChange={(event) => updateSettings("defaultVibe", event.target.value)}
-            />
-          </Field>
-          <Field label="Default favorite color">
-            <Input
-              value={content.settings.defaultFavoriteColor}
-              onChange={(event) => updateSettings("defaultFavoriteColor", event.target.value)}
-            />
-          </Field>
-          <Field label="Helmet required">
-            <select
-              className="w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm shadow-sm outline-none"
-              value={content.settings.helmetRequired ? "true" : "false"}
-              onChange={(event) => updateSettings("helmetRequired", event.target.value === "true")}
-            >
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </Field>
-          <Field label="Pose direction">
-            <textarea
-              className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-              value={content.settings.poseDirection}
-              onChange={(event) => updateSettings("poseDirection", event.target.value)}
-            />
-          </Field>
-          <Field label="Camera frame">
-            <textarea
-              className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-              value={content.settings.cameraFrame}
-              onChange={(event) => updateSettings("cameraFrame", event.target.value)}
-            />
-          </Field>
-          <Field label="Pose variants">
-            <ArrayEditor
-              items={content.settings.poseVariants}
-              onChange={(items) => updateSettings("poseVariants", items)}
-              addLabel="Add pose variant"
-            />
-          </Field>
-          <Field label="Wardrobe direction">
-            <textarea
-              className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-              value={content.settings.wardrobeDirection}
-              onChange={(event) => updateSettings("wardrobeDirection", event.target.value)}
-            />
-          </Field>
-          <Field label="Realism direction">
-            <textarea
-              className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-              value={content.settings.realismDirection}
-              onChange={(event) => updateSettings("realismDirection", event.target.value)}
-            />
-          </Field>
-        </div>
-      </Section>
-
-      <Section title="Bike cards">
-        <div className="space-y-4">
-          {content.bikes.map((bike, index) => (
-            <div key={bike.id || index} className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Bike ID">
-                  <Input
-                    value={bike.id}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        bikes: updateListItem(current.bikes, index, { ...bike, id: event.target.value })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Bike name">
-                  <Input
-                    value={bike.name}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        bikes: updateListItem(current.bikes, index, { ...bike, name: event.target.value })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Image path">
-                  <Input
-                    value={bike.image}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        bikes: updateListItem(current.bikes, index, { ...bike, image: event.target.value })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Description">
-                  <Input
-                    value={bike.description}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        bikes: updateListItem(current.bikes, index, { ...bike, description: event.target.value })
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
-              <Button
-                className="mt-4"
-                variant="ghost"
-                onClick={() =>
-                  setContent((current) => ({
-                    ...current,
-                    bikes: current.bikes.filter((_, bikeIndex) => bikeIndex !== index)
-                  }))
-                }
-              >
-                Remove bike
-              </Button>
+      <main className="space-y-6">
+        <div className="rounded-[32px] border border-white/10 bg-[#091222] p-6 text-white shadow-[0_30px_80px_rgba(1,8,20,0.45)]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/60">
+                {navItems.find((item) => item.id === activeTab)?.label}
+              </span>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight">
+                {activeTab === "overview" && "Business overview"}
+                {activeTab === "users" && "User lookup"}
+                {activeTab === "bikes" && "Bike manager"}
+                {activeTab === "environments" && "Environment manager"}
+                {activeTab === "settings" && "Experience settings"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-white/55">
+                {activeTab === "overview" && "See total traffic, generation trends, recent activity, and export the whole dataset."}
+                {activeTab === "users" && "Search any phone number and inspect how many times that user generated images."}
+                {activeTab === "bikes" && "Maintain bike cards and the data used in the public bike selection step."}
+                {activeTab === "environments" && "Update environment cards, labels, descriptions, and scene direction text."}
+                {activeTab === "settings" && "Edit prompt defaults, hero copy, behavior content, and generation settings."}
+              </p>
             </div>
-          ))}
-          <Button
-            variant="secondary"
-            onClick={() =>
-              setContent((current) => ({
-                ...current,
-                bikes: [
-                  ...current.bikes,
-                  {
-                    id: `bike-${current.bikes.length + 1}`,
-                    name: "New Bike",
-                    description: "Describe the bike.",
-                    image: "/bikes/neo-cafe.svg"
-                  }
-                ]
-              }))
-            }
-          >
-            Add bike
-          </Button>
-        </div>
-      </Section>
-
-      <Section title="Environments">
-        <div className="space-y-4">
-          {content.environments.map((environment, index) => (
-            <div key={environment.id || index} className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Environment ID">
-                  <Input
-                    value={environment.id}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        environments: updateListItem(current.environments, index, {
-                          ...environment,
-                          id: event.target.value as typeof environment.id
-                        })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Label">
-                  <Input
-                    value={environment.label}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        environments: updateListItem(current.environments, index, {
-                          ...environment,
-                          label: event.target.value
-                        })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Description">
-                  <Input
-                    value={environment.description}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        environments: updateListItem(current.environments, index, {
-                          ...environment,
-                          description: event.target.value
-                        })
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Scene direction">
-                  <Input
-                    value={environment.sceneDirection}
-                    onChange={(event) =>
-                      setContent((current) => ({
-                        ...current,
-                        environments: updateListItem(current.environments, index, {
-                          ...environment,
-                          sceneDirection: event.target.value
-                        })
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
-              <Button
-                className="mt-4"
-                variant="ghost"
-                onClick={() =>
-                  setContent((current) => ({
-                    ...current,
-                    environments: current.environments.filter((_, itemIndex) => itemIndex !== index)
-                  }))
-                }
-              >
-                Remove environment
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="secondary"
-            onClick={() =>
-              setContent((current) => ({
-                ...current,
-                environments: [
-                  ...current.environments,
-                  {
-                    id: "city",
-                    label: "New Environment",
-                    description: "Describe the place.",
-                    sceneDirection: "Describe the cinematic scene direction."
-                  }
-                ]
-              }))
-            }
-          >
-            Add environment
-          </Button>
-        </div>
-      </Section>
-
-      <Section title="Color presets">
-        <ArrayEditor
-          items={content.colors}
-          onChange={(items) =>
-            setContent((current) => ({
-              ...current,
-              colors: items
-            }))
-          }
-          addLabel="Add color"
-        />
-      </Section>
-
-      <Section title="Behavior question">
-        <div className="grid gap-4">
-          <Field label="Question title">
-            <Input
-              value={content.behaviorQuestion.title}
-              onChange={(event) =>
-                setContent((current) => ({
-                  ...current,
-                  behaviorQuestion: {
-                    ...current.behaviorQuestion,
-                    title: event.target.value
-                  }
-                }))
-              }
-            />
-          </Field>
-          <Field label="Question description">
-            <textarea
-              className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-              value={content.behaviorQuestion.description}
-              onChange={(event) =>
-                setContent((current) => ({
-                  ...current,
-                  behaviorQuestion: {
-                    ...current.behaviorQuestion,
-                    description: event.target.value
-                  }
-                }))
-              }
-            />
-          </Field>
-          <div className="space-y-4">
-            {content.behaviorQuestion.options.map((option, index) => (
-              <div key={option.id || index} className="rounded-[28px] border border-slate-200 bg-white p-5">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Option ID">
-                    <Input
-                      value={option.id}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              id: event.target.value as typeof option.id
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Label">
-                    <Input
-                      value={option.label}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              label: event.target.value
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Description">
-                    <Input
-                      value={option.description}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              description: event.target.value
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Emotional tone">
-                    <Input
-                      value={option.emotionalTone}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              emotionalTone: event.target.value
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Traits">
-                    <ArrayEditor
-                      items={option.traits}
-                      onChange={(items) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              traits: items
-                            })
-                          }
-                        }))
-                      }
-                      addLabel="Add trait"
-                    />
-                  </Field>
-                  <Field label="Friend mode social dynamic">
-                    <textarea
-                      className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-                      value={option.socialDynamicFriend}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              socialDynamicFriend: event.target.value
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Solo mode social dynamic">
-                    <textarea
-                      className="min-h-28 w-full rounded-3xl border border-white/60 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none"
-                      value={option.socialDynamicSolo}
-                      onChange={(event) =>
-                        setContent((current) => ({
-                          ...current,
-                          behaviorQuestion: {
-                            ...current.behaviorQuestion,
-                            options: updateListItem(current.behaviorQuestion.options, index, {
-                              ...option,
-                              socialDynamicSolo: event.target.value
-                            })
-                          }
-                        }))
-                      }
-                    />
-                  </Field>
-                </div>
-                <Button
-                  className="mt-4"
-                  variant="ghost"
-                  onClick={() =>
-                    setContent((current) => ({
-                      ...current,
-                      behaviorQuestion: {
-                        ...current.behaviorQuestion,
-                        options: current.behaviorQuestion.options.filter((_, itemIndex) => itemIndex !== index)
-                      }
-                    }))
-                  }
-                >
-                  Remove option
-                </Button>
-              </div>
-            ))}
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setContent((current) => ({
-                  ...current,
-                  behaviorQuestion: {
-                    ...current.behaviorQuestion,
-                    options: [
-                      ...current.behaviorQuestion.options,
-                      {
-                        id: "new-option",
-                        label: "New option",
-                        description: "Describe this behavior.",
-                        traits: ["confident"],
-                        emotionalTone: "bold",
-                        socialDynamicFriend: "two close friends enjoying the ride",
-                        socialDynamicSolo: "a rider with a striking solo presence"
-                      }
-                    ]
-                  }
-                }))
-              }
-            >
-              Add behavior option
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save changes"}
             </Button>
           </div>
         </div>
-      </Section>
+
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+        {success ? <p className="text-sm text-emerald-300">{success}</p> : null}
+
+        {activeTab === "overview" ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <StatCard label="Total users" value={String(overview.totalUsers)} />
+              <StatCard label="Verified users" value={String(overview.totalVerifiedUsers)} />
+              <StatCard label="Total generations" value={String(overview.totalGenerations)} />
+              <StatCard label="Today generations" value={String(overview.todayGenerations)} />
+            </div>
+
+            <Panel title="Quick search">
+              <div className="flex flex-col gap-3 md:flex-row">
+                <Input
+                  value={searchPhone}
+                  onChange={(event) => setSearchPhone(event.target.value)}
+                  placeholder="Search by phone number"
+                  className="md:flex-1"
+                />
+                <Button onClick={handleSearch} disabled={statsLoading}>
+                  {statsLoading ? "Searching..." : "Search"}
+                </Button>
+              </div>
+            </Panel>
+
+            <Panel title="Recent activity" noPadding>
+              <DataTable
+                headers={["Name", "Phone", "Bike", "Environment", "Status", "Time"]}
+                rows={recentRows.map((row, index) => [
+                  `${row.name}-${index}`,
+                  row.name,
+                  row.phone,
+                  row.bikeType,
+                  row.environment,
+                  row.status,
+                  row.createdAt
+                ])}
+                emptyMessage="No recent activity found."
+              />
+            </Panel>
+          </div>
+        ) : null}
+
+        {activeTab === "users" ? (
+          <div className="space-y-6">
+            <Panel title="Search by phone">
+              <div className="flex flex-col gap-3 md:flex-row">
+                <Input
+                  value={searchPhone}
+                  onChange={(event) => setSearchPhone(event.target.value)}
+                  placeholder="8801xxxxxxxxx"
+                  className="md:flex-1"
+                />
+                <Button onClick={handleSearch} disabled={statsLoading}>
+                  {statsLoading ? "Searching..." : "Search user"}
+                </Button>
+              </div>
+            </Panel>
+
+            <Panel title="Search result" noPadding>
+              <DataTable
+                headers={["Name", "Phone", "Age", "Generations", "Last bike", "Last env", "Last generated"]}
+                rows={searchResults.map((row) => [
+                  String(row.userId),
+                  row.name,
+                  row.phone,
+                  String(row.age),
+                  String(row.totalGenerations),
+                  row.lastBike || "-",
+                  row.lastEnvironment || "-",
+                  row.lastGeneratedAt || "-"
+                ])}
+                emptyMessage={
+                  searchPhone ? "No user found for this number." : "Search a number to see image generation history."
+                }
+              />
+            </Panel>
+          </div>
+        ) : null}
+
+        {activeTab === "bikes" ? (
+          <Panel title="Bike card manager">
+            <div className="space-y-4">
+              {content.bikes.map((bike, index) => (
+                <EditorCard key={bike.id || index} title={bike.name || `Bike ${index + 1}`}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Bike ID">
+                      <Input
+                        value={bike.id}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            bikes: updateListItem(current.bikes, index, { ...bike, id: event.target.value })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Bike name">
+                      <Input
+                        value={bike.name}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            bikes: updateListItem(current.bikes, index, { ...bike, name: event.target.value })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Image path">
+                      <Input
+                        value={bike.image}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            bikes: updateListItem(current.bikes, index, { ...bike, image: event.target.value })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Description">
+                      <textarea
+                        className={editorTextAreaClass}
+                        value={bike.description}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            bikes: updateListItem(current.bikes, index, { ...bike, description: event.target.value })
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <Button
+                    className="mt-4"
+                    variant="dark"
+                    onClick={() =>
+                      setContent((current) => ({
+                        ...current,
+                        bikes: current.bikes.filter((_, bikeIndex) => bikeIndex !== index)
+                      }))
+                    }
+                  >
+                    Remove bike
+                  </Button>
+                </EditorCard>
+              ))}
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setContent((current) => ({
+                    ...current,
+                    bikes: [
+                      ...current.bikes,
+                      {
+                        id: `bike-${current.bikes.length + 1}`,
+                        name: "New Bike",
+                        description: "Describe the bike.",
+                        image: "/bikes/neo-cafe.svg"
+                      }
+                    ]
+                  }))
+                }
+              >
+                Add bike
+              </Button>
+            </div>
+          </Panel>
+        ) : null}
+
+        {activeTab === "environments" ? (
+          <Panel title="Environment manager">
+            <div className="space-y-4">
+              {content.environments.map((environment, index) => (
+                <EditorCard key={environment.id || index} title={environment.label || `Environment ${index + 1}`}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Environment ID">
+                      <Input
+                        value={environment.id}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            environments: updateListItem(current.environments, index, {
+                              ...environment,
+                              id: event.target.value as typeof environment.id
+                            })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Label">
+                      <Input
+                        value={environment.label}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            environments: updateListItem(current.environments, index, {
+                              ...environment,
+                              label: event.target.value
+                            })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Description">
+                      <textarea
+                        className={editorTextAreaClass}
+                        value={environment.description}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            environments: updateListItem(current.environments, index, {
+                              ...environment,
+                              description: event.target.value
+                            })
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Scene direction">
+                      <textarea
+                        className={editorTextAreaClass}
+                        value={environment.sceneDirection}
+                        onChange={(event) =>
+                          setContent((current) => ({
+                            ...current,
+                            environments: updateListItem(current.environments, index, {
+                              ...environment,
+                              sceneDirection: event.target.value
+                            })
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <Button
+                    className="mt-4"
+                    variant="dark"
+                    onClick={() =>
+                      setContent((current) => ({
+                        ...current,
+                        environments: current.environments.filter((_, itemIndex) => itemIndex !== index)
+                      }))
+                    }
+                  >
+                    Remove environment
+                  </Button>
+                </EditorCard>
+              ))}
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setContent((current) => ({
+                    ...current,
+                    environments: [
+                      ...current.environments,
+                      {
+                        id: "city",
+                        label: "New Environment",
+                        description: "Describe the place.",
+                        image: "",
+                        sceneDirection: "Describe the cinematic scene direction."
+                      }
+                    ]
+                  }))
+                }
+              >
+                Add environment
+              </Button>
+            </div>
+          </Panel>
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <div className="space-y-6">
+            <Panel title="Hero copy">
+              <div className="grid gap-4">
+                <Field label="Eyebrow">
+                  <Input value={content.hero.eyebrow} onChange={(event) => updateHero("eyebrow", event.target.value)} />
+                </Field>
+                <Field label="Title">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.hero.title}
+                    onChange={(event) => updateHero("title", event.target.value)}
+                  />
+                </Field>
+                <Field label="Description">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.hero.description}
+                    onChange={(event) => updateHero("description", event.target.value)}
+                  />
+                </Field>
+              </div>
+            </Panel>
+
+            <Panel title="Prompt settings">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Companion mode">
+                  <select
+                    className={editorSelectClass}
+                    value={content.settings.companionMode}
+                    onChange={(event) => updateSettings("companionMode", event.target.value as "friend" | "solo")}
+                  >
+                    <option value="friend">Friend</option>
+                    <option value="solo">Solo</option>
+                  </select>
+                </Field>
+                <Field label="Default age range">
+                  <Input
+                    value={content.settings.defaultAgeRange}
+                    onChange={(event) => updateSettings("defaultAgeRange", event.target.value)}
+                  />
+                </Field>
+                <Field label="Default vibe">
+                  <Input
+                    value={content.settings.defaultVibe}
+                    onChange={(event) => updateSettings("defaultVibe", event.target.value)}
+                  />
+                </Field>
+                <Field label="Default favorite color">
+                  <Input
+                    value={content.settings.defaultFavoriteColor}
+                    onChange={(event) => updateSettings("defaultFavoriteColor", event.target.value)}
+                  />
+                </Field>
+                <Field label="Helmet required">
+                  <select
+                    className={editorSelectClass}
+                    value={content.settings.helmetRequired ? "true" : "false"}
+                    onChange={(event) => updateSettings("helmetRequired", event.target.value === "true")}
+                  >
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </Field>
+                <Field label="Pose variants">
+                  <ArrayEditor
+                    items={content.settings.poseVariants}
+                    onChange={(items) => updateSettings("poseVariants", items)}
+                    addLabel="Add pose variant"
+                  />
+                </Field>
+                <Field label="Pose direction">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.settings.poseDirection}
+                    onChange={(event) => updateSettings("poseDirection", event.target.value)}
+                  />
+                </Field>
+                <Field label="Camera frame">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.settings.cameraFrame}
+                    onChange={(event) => updateSettings("cameraFrame", event.target.value)}
+                  />
+                </Field>
+                <Field label="Wardrobe direction">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.settings.wardrobeDirection}
+                    onChange={(event) => updateSettings("wardrobeDirection", event.target.value)}
+                  />
+                </Field>
+                <Field label="Realism direction">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.settings.realismDirection}
+                    onChange={(event) => updateSettings("realismDirection", event.target.value)}
+                  />
+                </Field>
+              </div>
+            </Panel>
+
+            <Panel title="Behavior question">
+              <div className="grid gap-4">
+                <Field label="Question title">
+                  <Input
+                    value={content.behaviorQuestion.title}
+                    onChange={(event) =>
+                      setContent((current) => ({
+                        ...current,
+                        behaviorQuestion: {
+                          ...current.behaviorQuestion,
+                          title: event.target.value
+                        }
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Question description">
+                  <textarea
+                    className={editorTextAreaClass}
+                    value={content.behaviorQuestion.description}
+                    onChange={(event) =>
+                      setContent((current) => ({
+                        ...current,
+                        behaviorQuestion: {
+                          ...current.behaviorQuestion,
+                          description: event.target.value
+                        }
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Color presets">
+                  <ArrayEditor
+                    items={content.colors}
+                    onChange={(items) =>
+                      setContent((current) => ({
+                        ...current,
+                        colors: items
+                      }))
+                    }
+                    addLabel="Add color"
+                  />
+                </Field>
+              </div>
+            </Panel>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+const editorTextAreaClass =
+  "min-h-28 w-full rounded-[22px] border border-blue-400/14 bg-[linear-gradient(180deg,rgba(15,32,58,0.92),rgba(9,24,44,0.98))] px-4 py-3.5 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none transition placeholder:text-slate-500 focus:border-blue-400/45 focus:ring-2 focus:ring-blue-500/15";
+
+const editorSelectClass =
+  "w-full rounded-[22px] border border-blue-400/14 bg-[linear-gradient(180deg,rgba(15,32,58,0.92),rgba(9,24,44,0.98))] px-4 py-3.5 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none transition focus:border-blue-400/45 focus:ring-2 focus:ring-blue-500/15";
+
+function Panel({
+  title,
+  children,
+  noPadding = false
+}: {
+  title: string;
+  children: React.ReactNode;
+  noPadding?: boolean;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[#091222] text-white shadow-[0_30px_80px_rgba(1,8,20,0.4)]">
+      <div className="border-b border-white/10 px-6 py-5">
+        <h3 className="text-lg font-semibold">{title}</h3>
+      </div>
+      <div className={noPadding ? "" : "p-6"}>{children}</div>
+    </section>
+  );
+}
+
+function EditorCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+      <div className="mb-4 text-base font-semibold text-white">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function DataTable({
+  headers,
+  rows,
+  emptyMessage
+}: {
+  headers: string[];
+  rows: string[][];
+  emptyMessage: string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="bg-white/5 text-white/60">
+          <tr>
+            {headers.map((header) => (
+              <th key={header} className="px-5 py-3 font-medium">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? (
+            rows.map((row) => (
+              <tr key={row[0]} className="border-t border-white/10">
+                {row.slice(1).map((value, index) => (
+                  <td key={`${row[0]}-${index}`} className="px-5 py-3">
+                    {value}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr className="border-t border-white/10">
+              <td className="px-5 py-4 text-white/45" colSpan={headers.length}>
+                {emptyMessage}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-[#091222] px-5 py-5 text-white shadow-[0_20px_60px_rgba(1,8,20,0.35)]">
+      <div className="text-sm text-white/55">{label}</div>
+      <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-[32px] border border-white/80 bg-white/80 p-6 shadow-glow backdrop-blur sm:p-8">
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h2>
-      <div className="mt-6 space-y-5">{children}</div>
+    <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
+    <label className="block space-y-2">
+      <span className="text-sm font-medium text-white/75">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -796,7 +923,7 @@ function ArrayEditor({
               onChange(items.map((currentItem, itemIndex) => (itemIndex === index ? event.target.value : currentItem)))
             }
           />
-          <Button variant="ghost" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>
+          <Button variant="dark" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>
             Remove
           </Button>
         </div>

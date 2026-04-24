@@ -9,9 +9,34 @@ interface Props {
   previewUrls: string[];
   onFileChange: (files: FileList | null) => void | Promise<void>;
   update: <K extends keyof RideFormData>(key: K, value: RideFormData[K]) => void;
+  onDateOfBirthChange: (value: string) => void;
+  otpCode: string;
+  onOtpChange: (value: string) => void;
+  onSendOtp: () => void | Promise<void>;
+  onVerifyOtp: () => void | Promise<void>;
+  otpSent: boolean;
+  otpVerified: boolean;
+  otpBusy: boolean;
+  otpStatusMessage?: string;
+  otpError?: string;
 }
 
-export function BasicInfoStep({ data, previewUrls, onFileChange, update }: Props) {
+export function BasicInfoStep({
+  data,
+  previewUrls,
+  onFileChange,
+  update,
+  onDateOfBirthChange,
+  otpCode,
+  onOtpChange,
+  onSendOtp,
+  onVerifyOtp,
+  otpSent,
+  otpVerified,
+  otpBusy,
+  otpStatusMessage,
+  otpError
+}: Props) {
   return (
     <section className="mx-auto w-full max-w-[640px]">
       <div className="mb-8 text-center md:mb-7">
@@ -33,25 +58,20 @@ export function BasicInfoStep({ data, previewUrls, onFileChange, update }: Props
           />
         </Field>
 
-        <Field label="Age">
+        <Field label="Date of Birth">
           <div className="relative">
             <FieldIcon
               type="calendar"
               className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-white/48"
             />
-            <select
-              value={data.ageRange}
-              onChange={(event) => update("ageRange", event.target.value)}
-              className="h-[52px] w-full appearance-none rounded-[11px] border border-white/[0.065] bg-transparent pl-12 pr-10 text-[0.95rem] text-white outline-none transition focus:border-white/16"
-            >
-              {Array.from({ length: 53 }, (_, index) => index + 8).map((age) => (
-                <option key={age} value={String(age)} className=" text-white">
-                  {age}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/45">⌄</span>
+            <Input
+              type="date"
+              value={data.dateOfBirth}
+              onChange={(event) => onDateOfBirthChange(event.target.value)}
+              className="h-[52px] rounded-md border border-white/[0.065] bg-transparent pl-12 text-[0.95rem] text-white [background-image:none] placeholder:text-white/42 focus:border-white/16 focus:ring-0"
+            />
           </div>
+          {data.ageRange ? <p className="text-xs text-white/50">Calculated age: {data.ageRange}</p> : null}
         </Field>
 
         <Field label="Mobile Number">
@@ -65,53 +85,72 @@ export function BasicInfoStep({ data, previewUrls, onFileChange, update }: Props
             />
             <button
               type="button"
+              onClick={onSendOtp}
+              disabled={otpBusy || !data.phone.trim()}
               className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b]"
             >
-              Send OTP
+              {otpVerified ? "Verified" : otpBusy ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
             </button>
           </div>
         </Field>
 
-        <Field label="OTP Verification">
-          <div className="relative">
-            <InputWithIcon icon="shield" placeholder="Enter 6-digit OTP" className="pr-32" />
-            <button
-              type="button"
-              className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b]"
-            >
-              Verify OTP
-            </button>
-          </div>
-        </Field>
+        {otpSent ? (
+          <Field label="OTP Verification">
+            <div className="relative">
+              <InputWithIcon
+                icon="shield"
+                placeholder="Enter 4-digit OTP"
+                className="pr-32"
+                value={otpCode}
+                onChange={(event) => onOtpChange(event.target.value)}
+                inputMode="numeric"
+                maxLength={4}
+              />
+              <button
+                type="button"
+                onClick={onVerifyOtp}
+                disabled={otpBusy || otpVerified || otpCode.trim().length < 4}
+                className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b]"
+              >
+                {otpVerified ? "Verified" : otpBusy ? "Verifying..." : "Verify OTP"}
+              </button>
+            </div>
+          </Field>
+        ) : null}
 
-        <div className="space-y-2">
-          <div className="text-[0.9rem] font-semibold text-white">Your Photo</div>
-          <p className="text-[0.8rem] text-white/30">Upload a clear front-facing photo</p>
+        {otpStatusMessage ? <p className="text-sm text-emerald-300">{otpStatusMessage}</p> : null}
+        {otpError ? <p className="text-sm text-rose-300">{otpError}</p> : null}
 
-          <label className="mt-3 flex min-h-[156px] cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg- px-5 py-5 text-center transition hover:border-white/28 md:min-h-[180px]">
-            <input
-              type="file"
-              accept="image/*"
-              capture="user"
-              className="hidden"
-              onChange={(event) => onFileChange(event.target.files)}
-            />
+        {otpVerified ? (
+          <div className="space-y-2">
+            <div className="text-[0.9rem] font-semibold text-white">Your Photo</div>
+            <p className="text-[0.8rem] text-white/30">Upload a clear front-facing photo</p>
 
-            {previewUrls[0] ? (
-              <div className="relative min-h-[150px]  max-w-[200px] w-[100%] overflow-hidden rounded-md md:min-h-[170px]">
-                <Image src={previewUrls[0]} alt="Selected rider preview" fill className="object-cover" />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.035] text-white/50 md:h-[72px] md:w-[72px]">
-                  <FieldIcon type="user" className="h-8 w-8" />
+            <label className="mt-3 flex min-h-[156px] cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg- px-5 py-5 text-center transition hover:border-white/28 md:min-h-[180px]">
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="hidden"
+                onChange={(event) => onFileChange(event.target.files)}
+              />
+
+              {previewUrls[0] ? (
+                <div className="relative min-h-[150px]  max-w-[200px] w-[100%] overflow-hidden rounded-md md:min-h-[170px]">
+                  <Image src={previewUrls[0]} alt="Selected rider preview" fill className="object-cover" />
                 </div>
-                <div className="mt-4 text-[1rem] font-medium text-white">Upload your photo</div>
-                <div className="mt-2 text-[0.85rem] text-white/58">1:1 ratio · JPG, PNG · Max 5MB</div>
-              </div>
-            )}
-          </label>
-        </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.035] text-white/50 md:h-[72px] md:w-[72px]">
+                    <FieldIcon type="user" className="h-8 w-8" />
+                  </div>
+                  <div className="mt-4 text-[1rem] font-medium text-white">Upload your photo</div>
+                  <div className="mt-2 text-[0.85rem] text-white/58">1:1 ratio · JPG, PNG · Max 5MB</div>
+                </div>
+              )}
+            </label>
+          </div>
+        ) : null}
       </div>
     </section>
   );
