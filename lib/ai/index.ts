@@ -1,6 +1,7 @@
 import { getAIConfig } from "@/config/ai.config";
 import { AIProvider } from "@/lib/ai/types";
 import { CustomProvider } from "@/lib/ai/providers/custom";
+import { GeminiProvider } from "@/lib/ai/providers/gemini";
 import { OpenAIProvider } from "@/lib/ai/providers/openai";
 import { OpenRouterProvider } from "@/lib/ai/providers/openrouter";
 import { ReplicateProvider } from "@/lib/ai/providers/replicate";
@@ -10,6 +11,8 @@ export function createAIProvider(): AIProvider {
   const config = getAIConfig();
 
   switch (config.provider) {
+    case "gemini":
+      return new GeminiProvider(config);
     case "openrouter":
       return new OpenRouterProvider(config);
     case "replicate":

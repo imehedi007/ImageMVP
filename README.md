@@ -19,12 +19,12 @@ cp .env.example .env.local
 3. Set at least:
 
 ```bash
-AI_PROVIDER=openrouter
-AI_API_KEY=your_api_key
-AI_TEXT_MODEL=google/gemini-2.5-flash
-AI_IMAGE_MODEL=google/gemini-3.1-flash-image-preview
-AI_RESPONSES_MODEL=gpt-4o-mini
-AI_API_URL=https://openrouter.ai/api/v1
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key
+AI_TEXT_MODEL=gemini-2.5-flash
+AI_IMAGE_MODEL=gemini-3.1-flash-image-preview
+AI_RESPONSES_MODEL=gemini-2.5-flash
+AI_API_URL=
 AI_OPENAI_USE_RESPONSES_IDENTITY=false
 AI_MAX_REFERENCE_IMAGES=3
 AI_IMAGE_SIZE=1K
@@ -48,5 +48,5 @@ npm run dev
 - Providers live under `lib/ai/providers` and can be swapped via `AI_PROVIDER` without changing UI or route logic.
 - The API route lives at `app/api/generate/route.ts`.
 - Company content can be managed from `/admin` with the admin credentials from `.env.local`.
-- If your OpenAI org is not verified yet, keep `AI_OPENAI_USE_RESPONSES_IDENTITY=false` to avoid the verified-only Responses image path.
-- The default setup now targets OpenRouter with `google/gemini-3.1-flash-image-preview` for image generation.
+- If no `GEMINI_API_KEY` is configured, the app returns a polished mock image so the full UX can still be tested locally.
+- The default setup now targets the official Gemini API with `gemini-3.1-flash-image-preview` for image generation.

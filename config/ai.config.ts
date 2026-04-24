@@ -1,4 +1,4 @@
-export type AIProviderName = "openai" | "openrouter" | "replicate" | "stability" | "custom";
+export type AIProviderName = "gemini" | "openai" | "openrouter" | "replicate" | "stability" | "custom";
 
 export interface AIRuntimeConfig {
   provider: AIProviderName;
@@ -16,15 +16,19 @@ export interface AIRuntimeConfig {
 }
 
 export function getAIConfig(): AIRuntimeConfig {
-  const provider = (process.env.AI_PROVIDER as AIProviderName) || "openai";
+  const provider = (process.env.AI_PROVIDER as AIProviderName) || "gemini";
 
   return {
     provider,
     apiKey: resolveAPIKey(provider),
     apiUrl: process.env.AI_API_URL,
-    textModel: process.env.AI_TEXT_MODEL || "gpt-4o-mini",
-    imageModel: process.env.AI_IMAGE_MODEL || "gpt-image-1",
-    responsesModel: process.env.AI_RESPONSES_MODEL || process.env.AI_TEXT_MODEL || "gpt-4o-mini",
+    textModel: process.env.AI_TEXT_MODEL || (provider === "gemini" ? "gemini-2.5-flash" : "gpt-4o-mini"),
+    imageModel:
+      process.env.AI_IMAGE_MODEL || (provider === "gemini" ? "gemini-3.1-flash-image-preview" : "gpt-image-1"),
+    responsesModel:
+      process.env.AI_RESPONSES_MODEL ||
+      process.env.AI_TEXT_MODEL ||
+      (provider === "gemini" ? "gemini-2.5-flash" : "gpt-4o-mini"),
     openAIUseResponsesIdentity: process.env.AI_OPENAI_USE_RESPONSES_IDENTITY === "true",
     maxReferenceImages: Number(process.env.AI_MAX_REFERENCE_IMAGES || "1"),
     imageSize: process.env.AI_IMAGE_SIZE || "1024x1536",
@@ -44,6 +48,8 @@ export function hasUsableAIConfig(config: AIRuntimeConfig) {
 
 function resolveAPIKey(provider: AIProviderName) {
   switch (provider) {
+    case "gemini":
+      return process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
     case "stability":
       return process.env.STABILITY_API_KEY || process.env.AI_API_KEY;
     default:
