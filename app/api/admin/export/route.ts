@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { getExportRows } from "@/lib/server/mysql";
+import { getExportRowsPage } from "@/lib/server/mysql";
 
 export const runtime = "nodejs";
 
@@ -15,13 +15,15 @@ function escapeCsvValue(value: unknown) {
   return text;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
   try {
-    const rows = await getExportRows();
+    const url = new URL(request.url);
+    const page = Math.max(1, Number(url.searchParams.get("page") || "1"));
+    const rows = await getExportRowsPage(page, 2000);
     const header = [
       "userId",
       "name",
@@ -60,7 +62,7 @@ export async function GET() {
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="yamaha-ai-export.csv"'
+        "Content-Disposition": `attachment; filename="yamaha-ai-export-page-${page}.csv"`
       }
     });
   } catch (error) {

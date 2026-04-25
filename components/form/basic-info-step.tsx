@@ -17,6 +17,8 @@ interface Props {
   otpSent: boolean;
   otpVerified: boolean;
   otpBusy: boolean;
+  otpAction: "send" | "verify" | null;
+  otpLocked: boolean;
   otpStatusMessage?: string;
   otpError?: string;
 }
@@ -34,6 +36,8 @@ export function BasicInfoStep({
   otpSent,
   otpVerified,
   otpBusy,
+  otpAction,
+  otpLocked,
   otpStatusMessage,
   otpError
 }: Props) {
@@ -86,10 +90,10 @@ export function BasicInfoStep({
             <button
               type="button"
               onClick={onSendOtp}
-              disabled={otpBusy || !data.phone.trim()}
-              className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b]"
+              disabled={otpBusy || otpLocked || !data.phone.trim()}
+              className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b] disabled:cursor-not-allowed disabled:opacity-55"
             >
-              {otpVerified ? "Verified" : otpBusy ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+              {otpVerified ? "Verified" : otpLocked ? "Locked" : otpAction === "send" ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
             </button>
           </div>
         </Field>
@@ -109,10 +113,10 @@ export function BasicInfoStep({
               <button
                 type="button"
                 onClick={onVerifyOtp}
-                disabled={otpBusy || otpVerified || otpCode.trim().length < 4}
-                className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b]"
+                disabled={otpBusy || otpLocked || otpVerified || otpCode.trim().length < 4}
+                className="absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-[5px] bg-[#282a57] px-4 text-xs text-white transition hover:bg-[#32366b] disabled:cursor-not-allowed disabled:opacity-55"
               >
-                {otpVerified ? "Verified" : otpBusy ? "Verifying..." : "Verify OTP"}
+                {otpVerified ? "Verified" : otpLocked ? "Locked" : otpAction === "verify" ? "Verifying..." : "Verify OTP"}
               </button>
             </div>
           </Field>

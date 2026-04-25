@@ -7,18 +7,20 @@ import { BasicInfoStep } from "@/components/form/basic-info-step";
 import { SelectionStep } from "@/components/form/selection-step";
 import { Button } from "@/components/ui/button";
 import { GenerationStatusScreen } from "@/components/ui/generation-status-screen";
+import { ToastStack } from "@/components/ui/toast-stack";
 import { useExperienceContent } from "@/hooks/useExperienceContent";
 import { useFormState } from "@/hooks/useFormState";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { calculateAgeFromDateOfBirth } from "@/lib/utils/age";
-import { saveRideResult } from "@/lib/utils/storage";
+import { isValidBangladeshPhone } from "@/lib/utils/phone";
+import { clearRideDraft, loadRideDraft, saveRideDraft, saveRideResult } from "@/lib/utils/storage";
 
 const TOTAL_STEPS = 3;
 
 export function RideStoryExperience() {
   const router = useRouter();
-  const { data, progress, step, update, next, back, setData } = useFormState(TOTAL_STEPS);
-  const { files, previewUrls, updateFiles } = useImageUpload();
+  const { data, progress, step, update, next, back, setData, setStep } = useFormState(TOTAL_STEPS);
+  const { files, previewUrls, updateFiles, restoreFromDataUrls } = useImageUpload();
   const { content, loading: contentLoading, error: contentError } = useExperienceContent();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,10 +28,49 @@ export function RideStoryExperience() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpBusy, setOtpBusy] = useState(false);
+  const [otpAction, setOtpAction] = useState<"send" | "verify" | null>(null);
   const [otpStatusMessage, setOtpStatusMessage] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [otpLockedUntil, setOtpLockedUntil] = useState<string>("");
+  const [modalMessage, setModalMessage] = useState("");
   const [defaultsHydrated, setDefaultsHydrated] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; tone?: "default" | "success" | "error" }>>(
+    []
+  );
+
+  useEffect(() => {
+    if (draftHydrated) {
+      return;
+    }
+
+    void (async () => {
+      const draft = await loadRideDraft();
+
+      if (!draft) {
+        setDraftHydrated(true);
+        return;
+      }
+
+      setData((current) => ({
+        ...current,
+        ...((draft.data as unknown as typeof current) || {})
+      }));
+      setHasStarted(Boolean(draft.hasStarted));
+      setStep(
+        typeof draft.currentStep === "number"
+          ? Math.min(Math.max(draft.currentStep, 0), TOTAL_STEPS - 1)
+          : 0
+      );
+      setOtpSent(Boolean(draft.otpSent));
+      setOtpVerified(Boolean(draft.otpVerified));
+      if (draft.previewUrls?.length) {
+        await restoreFromDataUrls(draft.previewUrls);
+      }
+      setDraftHydrated(true);
+    })();
+  }, [draftHydrated, restoreFromDataUrls, setData, setStep]);
 
   useEffect(() => {
     if (!content || defaultsHydrated) {
@@ -46,6 +87,37 @@ export function RideStoryExperience() {
     }));
     setDefaultsHydrated(true);
   }, [content, defaultsHydrated, setData]);
+
+  useEffect(() => {
+    if (!draftHydrated) {
+      return;
+    }
+
+    void saveRideDraft({
+      data,
+      previewUrls,
+      hasStarted,
+      currentStep: step,
+      otpSent,
+      otpVerified
+    });
+  }, [data, draftHydrated, hasStarted, otpSent, otpVerified, previewUrls, step]);
+
+  useEffect(() => {
+    const hasDraftData = hasStarted || Boolean(data.name || data.phone || data.dateOfBirth || previewUrls[0]);
+
+    if (!hasDraftData) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [data.dateOfBirth, data.name, data.phone, hasStarted, previewUrls]);
 
   const selectedBike = useMemo(
     () => content?.bikes.find((bike) => bike.name === data.bikeType)?.name || data.bikeType,
@@ -75,13 +147,29 @@ export function RideStoryExperience() {
     setOtpVerified(false);
     setOtpStatusMessage("");
     setOtpError("");
+    setOtpLockedUntil("");
+    setOtpAction(null);
+  }
+
+  function showToast(message: string, tone: "default" | "success" | "error" = "default") {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((current) => [...current, { id, message, tone }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3200);
   }
 
   async function handleSendOtp() {
     try {
       setOtpBusy(true);
+      setOtpAction("send");
       setOtpError("");
       setOtpStatusMessage("");
+      setModalMessage("");
+
+      if (!isValidBangladeshPhone(data.phone)) {
+        throw new Error("Enter a valid Bangladesh mobile number.");
+      }
 
       const response = await fetch("/api/otp/send", {
         method: "POST",
@@ -96,24 +184,33 @@ export function RideStoryExperience() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (result.modalMessage) {
+          setModalMessage(result.modalMessage);
+        }
         throw new Error(result.message || "OTP could not be sent.");
       }
 
       setOtpSent(true);
       setOtpVerified(false);
       setOtpStatusMessage("OTP sent successfully. Enter the 4-digit code to verify.");
+      showToast("OTP sent successfully.", "success");
     } catch (issue) {
-      setOtpError(issue instanceof Error ? issue.message : "OTP could not be sent.");
+      const message = issue instanceof Error ? issue.message : "OTP could not be sent.";
+      setOtpError(message);
+      showToast(message, "error");
     } finally {
       setOtpBusy(false);
+      setOtpAction(null);
     }
   }
 
   async function handleVerifyOtp() {
     try {
       setOtpBusy(true);
+      setOtpAction("verify");
       setOtpError("");
       setOtpStatusMessage("");
+      setModalMessage("");
 
       const response = await fetch("/api/otp/verify", {
         method: "POST",
@@ -132,19 +229,30 @@ export function RideStoryExperience() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (result.modalMessage) {
+          setModalMessage(result.modalMessage);
+        }
+        if (result.blockedUntil) {
+          setOtpLockedUntil(result.blockedUntil);
+        }
         throw new Error(result.message || "OTP verification failed.");
       }
 
       if (result.phone) {
         update("phone", result.phone);
       }
+      setOtpSent(true);
       setOtpVerified(true);
       setOtpStatusMessage("Phone number verified successfully.");
+      showToast("Phone number verified successfully.", "success");
     } catch (issue) {
       setOtpVerified(false);
-      setOtpError(issue instanceof Error ? issue.message : "OTP verification failed.");
+      const message = issue instanceof Error ? issue.message : "OTP verification failed.";
+      setOtpError(message);
+      showToast(message, "error");
     } finally {
       setOtpBusy(false);
+      setOtpAction(null);
     }
   }
 
@@ -176,6 +284,7 @@ export function RideStoryExperience() {
 
       const result = await response.json();
       await saveRideResult(result);
+      await clearRideDraft();
       router.push("/result");
     } catch (issue) {
       console.error(issue);
@@ -187,6 +296,7 @@ export function RideStoryExperience() {
   const canContinueProfile =
     Boolean(data.name.trim()) && Boolean(data.phone.trim()) && Boolean(previewUrls[0]) && otpVerified;
   const canGenerate = Boolean(data.environment) && !loading;
+  const otpLocked = Boolean(otpLockedUntil && new Date(otpLockedUntil).getTime() > Date.now());
 
   if (loading) {
     return <GenerationStatusScreen bikeName={selectedBike} />;
@@ -194,24 +304,29 @@ export function RideStoryExperience() {
 
   if (contentLoading || !content) {
     return (
-      <section className="flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-xl rounded-[32px] border border-blue-400/10 bg-[#071427]/85 p-6 shadow-[0_25px_60px_rgba(2,10,28,0.45)] backdrop-blur sm:p-8">
-          <div className="h-3 w-44 animate-pulse rounded-full bg-blue-400/20" />
-          <div className="mt-5 h-16 w-4/5 animate-pulse rounded-[24px] bg-white/6" />
-          <div className="mt-4 h-16 w-full animate-pulse rounded-[24px] bg-white/6" />
-          <div className="mt-8 grid grid-cols-2 gap-3">
-            <div className="h-32 animate-pulse rounded-[24px] bg-white/6" />
-            <div className="h-32 animate-pulse rounded-[24px] bg-white/6" />
+      <>
+        <ToastStack toasts={toasts} />
+        <section className="flex min-h-screen items-center justify-center">
+          <div className="w-full max-w-xl rounded-[32px] border border-blue-400/10 bg-[#071427]/85 p-6 shadow-[0_25px_60px_rgba(2,10,28,0.45)] backdrop-blur sm:p-8">
+            <div className="h-3 w-44 animate-pulse rounded-full bg-blue-400/20" />
+            <div className="mt-5 h-16 w-4/5 animate-pulse rounded-[24px] bg-white/6" />
+            <div className="mt-4 h-16 w-full animate-pulse rounded-[24px] bg-white/6" />
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <div className="h-32 animate-pulse rounded-[24px] bg-white/6" />
+              <div className="h-32 animate-pulse rounded-[24px] bg-white/6" />
+            </div>
+            {contentError ? <p className="mt-6 text-sm text-rose-300">{contentError}</p> : null}
           </div>
-          {contentError ? <p className="mt-6 text-sm text-rose-300">{contentError}</p> : null}
-        </div>
-      </section>
+        </section>
+      </>
     );
   }
 
   if (!hasStarted) {
     return (
-      <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden py-6 text-white sm:py-8">
+      <>
+        <ToastStack toasts={toasts} />
+        <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden py-6 text-white sm:py-8">
         <div className="absolute inset-0 bg-[#041122]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.025)_1px,transparent_1.5px)] bg-[length:22px_22px] opacity-20" />
 
@@ -242,6 +357,7 @@ export function RideStoryExperience() {
 
         </div>
       </section>
+      </>
     );
   }
 
@@ -267,7 +383,9 @@ export function RideStoryExperience() {
       onVerifyOtp={handleVerifyOtp}
       otpSent={otpSent}
       otpVerified={otpVerified}
-      otpBusy={otpBusy}
+      otpBusy={otpBusy || otpLocked}
+      otpAction={otpAction}
+      otpLocked={otpLocked}
       otpStatusMessage={otpStatusMessage}
       otpError={otpError}
     />,
@@ -294,8 +412,20 @@ export function RideStoryExperience() {
   ];
 
   return (
-    <section className="mx-auto flex min-h-screen w-full max-w-[1240px] flex-col justify-center py-6 sm:py-8">
+    <>
+      <ToastStack toasts={toasts} />
+      <section className="mx-auto flex min-h-screen w-full max-w-[1240px] flex-col justify-center py-6 sm:py-8">
       <div className="">
+        {modalMessage ? (
+          <div className="mb-5 rounded-[24px] border border-amber-300/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+            <div className="flex items-start justify-between gap-4">
+              <p>{modalMessage}</p>
+              <button type="button" className="text-amber-100/80" onClick={() => setModalMessage("")}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : null}
         <WizardStepper step={step} />
 
         <div className="mt-10 space-y-5 md:mt-12">
@@ -334,6 +464,7 @@ export function RideStoryExperience() {
         </div>
       </div>
     </section>
+    </>
   );
 }
 

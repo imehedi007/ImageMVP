@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { getDashboardOverview, getRecentGenerationRows, searchUsersByPhone } from "@/lib/server/mysql";
+import {
+  getDashboardOverview,
+  getExportRowCount,
+  getRecentGenerationRows,
+  searchUsersByPhone
+} from "@/lib/server/mysql";
 
 export const runtime = "nodejs";
 
@@ -12,16 +17,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const search = request.nextUrl.searchParams.get("phone")?.trim() || "";
-    const [overview, recentRows, searchResults] = await Promise.all([
+    const [overview, recentRows, searchResults, exportRowCount] = await Promise.all([
       getDashboardOverview(),
-      getRecentGenerationRows(30),
-      search ? searchUsersByPhone(search) : Promise.resolve([])
+      getRecentGenerationRows(20),
+      search ? searchUsersByPhone(search) : Promise.resolve([]),
+      getExportRowCount()
     ]);
 
     return NextResponse.json({
       overview,
       recentRows,
-      searchResults
+      searchResults,
+      exportPageCount: Math.max(1, Math.ceil(exportRowCount / 2000))
     });
   } catch (error) {
     console.error("Failed to load admin stats", error);

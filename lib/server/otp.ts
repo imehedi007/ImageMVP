@@ -1,21 +1,8 @@
 import crypto from "node:crypto";
 import { calculateAgeFromDateOfBirth } from "@/lib/utils/age";
+import { normalizeBangladeshPhone } from "@/lib/utils/phone";
 
 const SMS_API_URL = "http://bulksmsbd.net/api/smsapi";
-
-export function normalizeBangladeshPhone(raw: string) {
-  const digits = raw.replace(/\D/g, "");
-
-  if (digits.startsWith("8801") && digits.length === 13) {
-    return digits;
-  }
-
-  if (digits.startsWith("01") && digits.length === 11) {
-    return `88${digits}`;
-  }
-
-  throw new Error("Enter a valid Bangladesh mobile number.");
-}
 
 export function parseAge(value: string) {
   const normalized = value.trim();
@@ -28,6 +15,8 @@ export function parseAge(value: string) {
 
   return age;
 }
+
+export { normalizeBangladeshPhone };
 
 export function generateOtpCode() {
   return String(crypto.randomInt(1000, 10000));

@@ -4,6 +4,7 @@ import {
   findLatestOtpRequest,
   incrementOtpAttempt,
   markOtpVerified,
+  setOtpBlockedUntil,
   upsertVerifiedUser
 } from "@/lib/server/mysql";
 import { hashOtp, isOtpExpired, normalizeBangladeshPhone, parseAge } from "@/lib/server/otp";
@@ -11,6 +12,7 @@ import { hashOtp, isOtpExpired, normalizeBangladeshPhone, parseAge } from "@/lib
 export const runtime = "nodejs";
 
 const MAX_VERIFY_ATTEMPTS = 5;
+const FREEZE_MS = 3 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,6 +49,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Send an OTP first." }, { status: 400 });
     }
 
+    if (latest.blocked_until && new Date(latest.blocked_until).getTime() > Date.now()) {
+      return NextResponse.json(
+        {
+          message: "Too many wrong OTP attempts. Please wait 3 minutes before trying again.",
+          modalMessage: "This number is temporarily frozen for 3 minutes because of too many wrong OTP attempts.",
+          blockedUntil: latest.blocked_until
+        },
+        { status: 429 }
+      );
+    }
+
     if (latest.verified_at) {
       const user = await upsertVerifiedUser({
         name: body.name.trim(),
@@ -69,7 +82,26 @@ export async function POST(request: NextRequest) {
 
     if (inputHash !== latest.otp_hash) {
       await incrementOtpAttempt(latest.id);
-      return NextResponse.json({ message: "Incorrect OTP." }, { status: 400 });
+      const nextAttemptCount = latest.attempt_count + 1;
+
+      if (nextAttemptCount >= 3) {
+        const blockedUntil = new Date(Date.now() + FREEZE_MS);
+        await setOtpBlockedUntil(latest.id, blockedUntil);
+        return NextResponse.json(
+          {
+            message: "Too many wrong OTP attempts. Please wait 3 minutes before trying again.",
+            modalMessage:
+              "You entered the wrong OTP 3 times. OTP activity is frozen for 3 minutes.",
+            blockedUntil: blockedUntil.toISOString()
+          },
+          { status: 429 }
+        );
+      }
+
+      return NextResponse.json(
+        { message: `Incorrect OTP. ${3 - nextAttemptCount} attempt left.` },
+        { status: 400 }
+      );
     }
 
     await markOtpVerified(latest.id);

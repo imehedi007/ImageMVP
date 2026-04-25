@@ -40,6 +40,35 @@ interface RecentGenerationRow {
   createdAt: string;
 }
 
+interface PaginatedUserRow {
+  userId: number;
+  name: string;
+  phone: string;
+  age: number;
+  totalGenerations: number;
+  lastGeneratedAt: string | null;
+}
+
+interface UserDetailPayload {
+  user: {
+    id: number;
+    name: string;
+    phone: string;
+    age: number;
+    otpVerifiedAt: string | null;
+    createdAt: string;
+  };
+  logs: Array<{
+    id: number;
+    bikeType: string;
+    environment: string;
+    status: string;
+    provider: string;
+    errorMessage: string | null;
+    createdAt: string;
+  }>;
+}
+
 type AdminTab = "overview" | "users" | "bikes" | "environments" | "settings";
 
 const emptyContent: ExperienceContent = {
@@ -81,6 +110,30 @@ const navItems: Array<{ id: AdminTab; label: string; hint: string }> = [
   { id: "settings", label: "Settings", hint: "Prompt config" }
 ];
 
+function formatAdminDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Dhaka"
+  })
+    .format(parsed)
+    .replace(",", " ·");
+}
+
 export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -101,6 +154,13 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
   });
   const [searchResults, setSearchResults] = useState<DashboardSearchRow[]>([]);
   const [recentRows, setRecentRows] = useState<RecentGenerationRow[]>([]);
+  const [usersRows, setUsersRows] = useState<PaginatedUserRow[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPageCount, setUsersPageCount] = useState(1);
+  const [usersLoading, setUsersLoading] = useState(initialAuthenticated);
+  const [userDetail, setUserDetail] = useState<UserDetailPayload | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [exportPageCount, setExportPageCount] = useState(1);
 
   useEffect(() => {
     if (!authenticated) {
@@ -109,6 +169,7 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
 
     void loadContent();
     void loadStats();
+    void loadUsersPage(1);
   }, [authenticated]);
 
   async function loadContent() {
@@ -155,16 +216,64 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
         overview: DashboardOverview;
         searchResults: DashboardSearchRow[];
         recentRows: RecentGenerationRow[];
+        exportPageCount: number;
       };
 
       setOverview(data.overview);
       setSearchResults(data.searchResults);
       setRecentRows(data.recentRows);
+      setExportPageCount(data.exportPageCount || 1);
     } catch (issue) {
       console.error(issue);
       setError("Could not load admin stats.");
     } finally {
       setStatsLoading(false);
+    }
+  }
+
+  async function loadUsersPage(page: number) {
+    try {
+      setUsersLoading(true);
+      const response = await fetch(`/api/admin/users?page=${page}&limit=15`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load users.");
+      }
+
+      const data = (await response.json()) as {
+        rows: PaginatedUserRow[];
+        page: number;
+        pageCount: number;
+      };
+
+      setUsersRows(data.rows);
+      setUsersPage(data.page);
+      setUsersPageCount(data.pageCount);
+    } catch (issue) {
+      console.error(issue);
+      setError("Could not load paginated users.");
+    } finally {
+      setUsersLoading(false);
+    }
+  }
+
+  async function openUserDetail(userId: number) {
+    try {
+      setDetailLoading(true);
+      setUserDetail(null);
+      const response = await fetch(`/api/admin/users/${userId}`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load user detail.");
+      }
+
+      const data = (await response.json()) as UserDetailPayload;
+      setUserDetail(data);
+    } catch (issue) {
+      console.error(issue);
+      setError("Could not load user detail.");
+    } finally {
+      setDetailLoading(false);
     }
   }
 
@@ -332,10 +441,10 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
 
         <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
           <a
-            href="/api/admin/export"
+            href={`/api/admin/export?page=1`}
             className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
           >
-            Export CSV
+            Export CSV 1
           </a>
           <Button variant="dark" className="w-full" onClick={handleLogout}>
             Log out
@@ -407,7 +516,7 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
                   row.bikeType,
                   row.environment,
                   row.status,
-                  row.createdAt
+                  formatAdminDateTime(row.createdAt)
                 ])}
                 emptyMessage="No recent activity found."
               />
@@ -432,22 +541,124 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
             </Panel>
 
             <Panel title="Search result" noPadding>
-              <DataTable
-                headers={["Name", "Phone", "Age", "Generations", "Last bike", "Last env", "Last generated"]}
-                rows={searchResults.map((row) => [
-                  String(row.userId),
-                  row.name,
-                  row.phone,
-                  String(row.age),
-                  String(row.totalGenerations),
-                  row.lastBike || "-",
-                  row.lastEnvironment || "-",
-                  row.lastGeneratedAt || "-"
-                ])}
-                emptyMessage={
-                  searchPhone ? "No user found for this number." : "Search a number to see image generation history."
-                }
-              />
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-white/5 text-white/60">
+                    <tr>
+                      <th className="px-5 py-3 font-medium">Name</th>
+                      <th className="px-5 py-3 font-medium">Phone</th>
+                      <th className="px-5 py-3 font-medium">Age</th>
+                      <th className="px-5 py-3 font-medium">Generations</th>
+                      <th className="px-5 py-3 font-medium">Last bike</th>
+                      <th className="px-5 py-3 font-medium">Last env</th>
+                      <th className="px-5 py-3 font-medium">Last generated</th>
+                      <th className="px-5 py-3 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchResults.length ? (
+                      searchResults.map((row) => (
+                        <tr key={row.userId} className="border-t border-white/10">
+                          <td className="px-5 py-3">{row.name}</td>
+                          <td className="px-5 py-3">{row.phone}</td>
+                          <td className="px-5 py-3">{row.age}</td>
+                          <td className="px-5 py-3">{row.totalGenerations}</td>
+                          <td className="px-5 py-3">{row.lastBike || "-"}</td>
+                          <td className="px-5 py-3">{row.lastEnvironment || "-"}</td>
+                          <td className="px-5 py-3">{formatAdminDateTime(row.lastGeneratedAt)}</td>
+                          <td className="px-5 py-3">
+                            <Button variant="secondary" className="px-4 py-2" onClick={() => void openUserDetail(row.userId)}>
+                              Watch
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={8} className="px-5 py-6 text-center text-white/45">
+                          {searchPhone ? "No user found for this number." : "Search a number to see image generation history."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+
+            <Panel title="All users" noPadding>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-white/5 text-white/60">
+                    <tr>
+                      <th className="px-5 py-3 font-medium">Name</th>
+                      <th className="px-5 py-3 font-medium">Phone</th>
+                      <th className="px-5 py-3 font-medium">Age</th>
+                      <th className="px-5 py-3 font-medium">Generations</th>
+                      <th className="px-5 py-3 font-medium">Last generated</th>
+                      <th className="px-5 py-3 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersLoading ? (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={6} className="px-5 py-8 text-center text-white/45">
+                          Loading users...
+                        </td>
+                      </tr>
+                    ) : usersRows.length ? (
+                      usersRows.map((row) => (
+                        <tr key={row.userId} className="border-t border-white/10">
+                          <td className="px-5 py-3">{row.name}</td>
+                          <td className="px-5 py-3">{row.phone}</td>
+                          <td className="px-5 py-3">{row.age}</td>
+                          <td className="px-5 py-3">{row.totalGenerations}</td>
+                          <td className="px-5 py-3">{formatAdminDateTime(row.lastGeneratedAt)}</td>
+                          <td className="px-5 py-3">
+                            <Button variant="secondary" className="px-4 py-2" onClick={() => void openUserDetail(row.userId)}>
+                              Watch
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={6} className="px-5 py-8 text-center text-white/45">
+                          No users found yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-white/10 px-5 py-4">
+                <Button variant="dark" disabled={usersPage <= 1} onClick={() => void loadUsersPage(usersPage - 1)}>
+                  Prev
+                </Button>
+                <div className="text-sm text-white/60">
+                  Page {usersPage} of {usersPageCount}
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={usersPage >= usersPageCount}
+                  onClick={() => void loadUsersPage(usersPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </Panel>
+
+            <Panel title="CSV export pages">
+              <div className="flex flex-wrap gap-3">
+                {Array.from({ length: exportPageCount }, (_, index) => index + 1).map((page) => (
+                  <a
+                    key={page}
+                    href={`/api/admin/export?page=${page}`}
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+                  >
+                    Export {page}
+                  </a>
+                ))}
+              </div>
             </Panel>
           </div>
         ) : null}
@@ -794,6 +1005,82 @@ export function AdminDashboard({ initialAuthenticated }: AdminDashboardProps) {
           </div>
         ) : null}
       </main>
+
+      {userDetail || detailLoading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020814]/80 p-4 backdrop-blur-sm">
+          <div className="max-h-[85svh] w-full max-w-3xl overflow-y-auto rounded-[32px] border border-white/10 bg-[#091222] p-6 text-white shadow-[0_30px_80px_rgba(1,8,20,0.55)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm uppercase tracking-[0.18em] text-white/45">User details</div>
+                <h3 className="mt-2 text-2xl font-semibold">
+                  {detailLoading ? "Loading..." : userDetail?.user.name || "User"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="text-white/60"
+                onClick={() => {
+                  setUserDetail(null);
+                  setDetailLoading(false);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {userDetail ? (
+              <div className="mt-6 space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InfoBlock label="User ID" value={String(userDetail.user.id)} />
+                  <InfoBlock label="Total generations" value={String(userDetail.logs.length)} />
+                  <InfoBlock label="Phone" value={userDetail.user.phone} />
+                  <InfoBlock label="Age" value={String(userDetail.user.age)} />
+                  <InfoBlock label="OTP verified" value={formatAdminDateTime(userDetail.user.otpVerifiedAt)} />
+                  <InfoBlock label="Created" value={formatAdminDateTime(userDetail.user.createdAt)} />
+                </div>
+
+                <div className="overflow-hidden rounded-[24px] border border-white/10">
+                  <div className="border-b border-white/10 px-5 py-4 text-sm font-semibold">Generation logs</div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-white/5 text-white/60">
+                        <tr>
+                          <th className="px-5 py-3 font-medium">Bike</th>
+                          <th className="px-5 py-3 font-medium">Environment</th>
+                          <th className="px-5 py-3 font-medium">Status</th>
+                          <th className="px-5 py-3 font-medium">Provider</th>
+                          <th className="px-5 py-3 font-medium">Error</th>
+                          <th className="px-5 py-3 font-medium">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userDetail.logs.length ? (
+                          userDetail.logs.map((log) => (
+                            <tr key={log.id} className="border-t border-white/10">
+                              <td className="px-5 py-3">{log.bikeType}</td>
+                              <td className="px-5 py-3">{log.environment}</td>
+                              <td className="px-5 py-3">{log.status}</td>
+                              <td className="px-5 py-3">{log.provider || "-"}</td>
+                              <td className="px-5 py-3 text-white/55">{log.errorMessage || "-"}</td>
+                              <td className="px-5 py-3">{formatAdminDateTime(log.createdAt)}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr className="border-t border-white/10">
+                            <td colSpan={6} className="px-5 py-8 text-center text-white/45">
+                              No generation logs for this user yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -882,6 +1169,15 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-[28px] border border-white/10 bg-[#091222] px-5 py-5 text-white shadow-[0_20px_60px_rgba(1,8,20,0.35)]">
       <div className="text-sm text-white/55">{label}</div>
       <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
+    </div>
+  );
+}
+
+function InfoBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/45">{label}</div>
+      <div className="mt-2 text-sm text-white">{value}</div>
     </div>
   );
 }

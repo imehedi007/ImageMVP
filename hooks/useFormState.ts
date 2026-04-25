@@ -47,6 +47,7 @@ export function useFormState(totalSteps: number) {
     next,
     back,
     reset,
-    setData
+    setData,
+    setStep
   };
 }

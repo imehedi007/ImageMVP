@@ -22,8 +22,23 @@ export function useImageUpload() {
   return {
     files,
     previewUrls,
-    updateFiles
+    updateFiles,
+    restoreFromDataUrls
   };
+
+  async function restoreFromDataUrls(urls: string[]) {
+    setPreviewUrls(urls);
+
+    if (!urls.length) {
+      setFiles([]);
+      return;
+    }
+
+    const restoredFiles = await Promise.all(
+      urls.map((url, index) => dataUrlToFile(url, `restored-photo-${index + 1}.png`))
+    );
+    setFiles(restoredFiles);
+  }
 }
 
 function readFileAsDataUrl(file: File) {
@@ -34,4 +49,10 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(new Error("Failed to read image."));
     reader.readAsDataURL(file);
   });
+}
+
+async function dataUrlToFile(dataUrl: string, filename: string) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], filename, { type: blob.type || "image/png" });
 }
