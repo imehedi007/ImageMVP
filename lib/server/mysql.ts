@@ -131,6 +131,7 @@ export async function ensureDatabaseSchema() {
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       user_id BIGINT UNSIGNED NOT NULL,
       phone VARCHAR(24) NOT NULL,
+      generation_log_id BIGINT UNSIGNED NULL,
       bike_type VARCHAR(120) NOT NULL,
       environment VARCHAR(120) NOT NULL,
       provider VARCHAR(40) NULL,
@@ -165,6 +166,9 @@ export async function ensureDatabaseSchema() {
 
   await safeQuery<ResultSetHeader>(
     `ALTER TABLE otp_requests ADD COLUMN IF NOT EXISTS blocked_until DATETIME NULL`
+  );
+  await safeQuery<ResultSetHeader>(
+    `ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS generation_log_id BIGINT UNSIGNED NULL AFTER phone`
   );
 
   schemaReady = true;
@@ -214,6 +218,26 @@ export interface OtpRow extends RowDataPacket {
   verified_at: string | null;
   blocked_until: string | null;
   created_at: string;
+}
+
+export interface GenerationJobRow extends RowDataPacket {
+  id: number;
+  user_id: number;
+  phone: string;
+  generation_log_id: number | null;
+  bike_type: string;
+  environment: string;
+  provider: string | null;
+  model: string | null;
+  status: string;
+  retry_count: number;
+  queue_message_id: string | null;
+  error_message: string | null;
+  payload_json: string | null;
+  result_summary: string | null;
+  result_caption: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function findVerifiedUserByPhone(phone: string) {
@@ -294,6 +318,109 @@ export async function createGenerationLog(params: {
   );
 
   return result.insertId;
+}
+
+export async function createGenerationJob(params: {
+  userId: number;
+  phone: string;
+  generationLogId: number;
+  bikeType: string;
+  environment: string;
+  provider: string;
+  model: string;
+  payloadJson: string;
+}) {
+  await ensureDatabaseSchema();
+  const [result] = await safeQuery<ResultSetHeader>(
+    `INSERT INTO generation_jobs (
+      user_id, phone, generation_log_id, bike_type, environment, provider, model, status, payload_json
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    [
+      params.userId,
+      params.phone,
+      params.generationLogId,
+      params.bikeType,
+      params.environment,
+      params.provider,
+      params.model,
+      params.payloadJson
+    ]
+  );
+
+  return result.insertId;
+}
+
+export async function getGenerationJob(jobId: number) {
+  await ensureDatabaseSchema();
+  const [rows] = await safeQuery<GenerationJobRow[]>(
+    `SELECT *
+     FROM generation_jobs
+     WHERE id = ?
+     LIMIT 1`,
+    [jobId]
+  );
+
+  return rows[0] || null;
+}
+
+export async function setGenerationJobQueueMessageId(jobId: number, messageId: string | null) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs SET queue_message_id = ?, updated_at = NOW() WHERE id = ?`,
+    [messageId, jobId]
+  );
+}
+
+export async function setGenerationJobProcessing(jobId: number, retryCount: number) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs
+     SET status = 'processing', retry_count = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [retryCount, jobId]
+  );
+}
+
+export async function setGenerationJobPending(jobId: number, retryCount: number, errorMessage: string | null) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs
+     SET status = 'pending', retry_count = ?, error_message = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [retryCount, errorMessage, jobId]
+  );
+}
+
+export async function completeGenerationJob(jobId: number, params: { summary: string; caption: string; errorMessage?: string | null }) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs
+     SET status = 'completed',
+         result_summary = ?,
+         result_caption = ?,
+         error_message = ?,
+         updated_at = NOW()
+     WHERE id = ?`,
+    [params.summary, params.caption, params.errorMessage || null, jobId]
+  );
+}
+
+export async function failGenerationJob(jobId: number, message: string, retryCount: number) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs
+     SET status = 'failed', error_message = ?, retry_count = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [message, retryCount, jobId]
+  );
+}
+
+export async function createGenerationJobEvent(jobId: number, eventType: string, message: string | null = null) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `INSERT INTO generation_job_events (job_id, event_type, message) VALUES (?, ?, ?)`,
+    [jobId, eventType, message]
+  );
 }
 
 export async function completeGenerationLog(id: number) {

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
 import { ResultActions } from "@/components/result/result-actions";
@@ -19,7 +18,7 @@ export function ResultCard({ result, onRegenerate }: Props) {
     <section className="mx-auto grid min-h-screen w-full max-w-7xl items-top items-start gap-8 py-6 lg:grid-cols-[0.92fr_1.08fr] lg:py-10">
       <div className="rounded-[26px] border border-white/10 bg-[#071427] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.22)]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] bg-[#0b1728]">
-          <Image src={result.imageUrl} alt="Generated Yamaha persona card" fill className="object-contain" priority />
+          <img src={result.imageUrl} alt="Generated Yamaha persona card" className="h-full w-full object-contain" />
         </div>
       </div>
 

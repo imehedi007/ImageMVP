@@ -14,6 +14,7 @@ import { useImageUpload } from "@/hooks/useImageUpload";
 import { calculateAgeFromDateOfBirth } from "@/lib/utils/age";
 import { isValidBangladeshPhone } from "@/lib/utils/phone";
 import { clearRideDraft, loadRideDraft, saveRideDraft, saveRideResult } from "@/lib/utils/storage";
+import { RideGenerationResponse } from "@/types";
 
 const TOTAL_STEPS = 3;
 
@@ -39,6 +40,7 @@ export function RideStoryExperience() {
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; tone?: "default" | "success" | "error" }>>(
     []
   );
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
 
   useEffect(() => {
     if (draftHydrated) {
@@ -65,6 +67,8 @@ export function RideStoryExperience() {
       );
       setOtpSent(Boolean(draft.otpSent));
       setOtpVerified(Boolean(draft.otpVerified));
+      setLoading(Boolean(draft.isGenerating));
+      setActiveJobId(typeof draft.activeJobId === "number" ? draft.activeJobId : null);
       if (draft.previewUrls?.length) {
         await restoreFromDataUrls(draft.previewUrls);
       }
@@ -99,9 +103,11 @@ export function RideStoryExperience() {
       hasStarted,
       currentStep: step,
       otpSent,
-      otpVerified
+      otpVerified,
+      isGenerating: loading,
+      activeJobId
     });
-  }, [data, draftHydrated, hasStarted, otpSent, otpVerified, previewUrls, step]);
+  }, [activeJobId, data, draftHydrated, hasStarted, loading, otpSent, otpVerified, previewUrls, step]);
 
   useEffect(() => {
     const hasDraftData = hasStarted || Boolean(data.name || data.phone || data.dateOfBirth || previewUrls[0]);
@@ -258,7 +264,6 @@ export function RideStoryExperience() {
 
   async function handleGenerate() {
     try {
-      setLoading(true);
       setError("");
 
       const formData = new FormData();
@@ -279,19 +284,83 @@ export function RideStoryExperience() {
       });
 
       if (!response.ok) {
-        throw new Error("Generation failed");
+        const failed = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(failed.message || "Generation failed");
       }
 
-      const result = await response.json();
-      await saveRideResult(result);
-      await clearRideDraft();
-      router.push("/result");
+      const result = (await response.json()) as { jobId?: number };
+
+      if (!result.jobId) {
+        throw new Error("Queue job could not be created.");
+      }
+
+      setActiveJobId(result.jobId);
+      setLoading(true);
     } catch (issue) {
       console.error(issue);
-      setError("Your ride story could not be generated. Please try again.");
+      setError(issue instanceof Error ? issue.message : "Your ride story could not be generated. Please try again.");
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!loading || !activeJobId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function checkStatus() {
+      try {
+        const response = await fetch(
+          `/api/generate/status?jobId=${activeJobId}&phone=${encodeURIComponent(data.phone)}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Could not check generation status.");
+        }
+
+        const result = (await response.json()) as {
+          status?: string;
+          message?: string;
+          result?: RideGenerationResponse | null;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (result.status === "completed" && result.result) {
+          await saveRideResult(result.result);
+          await clearRideDraft();
+          router.push("/result");
+          return;
+        }
+
+        if (result.status === "failed") {
+          throw new Error(result.message || "Image generation failed.");
+        }
+      } catch (issue) {
+        if (cancelled) {
+          return;
+        }
+
+        setLoading(false);
+        setActiveJobId(null);
+        setError(issue instanceof Error ? issue.message : "Your ride story could not be generated. Please try again.");
+      }
+    }
+
+    void checkStatus();
+    const interval = window.setInterval(() => {
+      void checkStatus();
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [activeJobId, data.phone, loading, router]);
 
   const canContinueProfile =
     Boolean(data.name.trim()) && Boolean(data.phone.trim()) && Boolean(previewUrls[0]) && otpVerified;

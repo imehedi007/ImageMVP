@@ -1,36 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createAIProvider } from "@/lib/ai";
-import { getAIConfig, hasUsableAIConfig } from "@/config/ai.config";
-import { readExperienceContent } from "@/lib/content";
 import {
-  completeGenerationLog,
+  createGenerationJob,
+  createGenerationJobEvent,
   createGenerationLog,
   failGenerationLog,
-  findVerifiedUserByPhone
+  findVerifiedUserByPhone,
+  setGenerationJobQueueMessageId
 } from "@/lib/server/mysql";
+import { saveJobInputFiles } from "@/lib/server/job-files";
+import { enqueueGenerationJob, hasQueueConfig } from "@/lib/server/sqs";
 import { normalizeBangladeshPhone } from "@/lib/server/otp";
-import { createMockRideStoryImage } from "@/lib/utils/mock-image";
-import { buildRidePromptBundle, fallbackStoryText } from "@/lib/utils/prompt";
-import { RideFormData, RideGenerationResponse } from "@/types";
+import { getAIConfig } from "@/config/ai.config";
+import { RideFormData } from "@/types";
 
 export const runtime = "nodejs";
-
-function parseStoryPayload(raw: string | undefined, fallback: { summary: string; caption: string }) {
-  if (!raw) {
-    return fallback;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<{ summary: string; caption: string }>;
-    return {
-      summary: parsed.summary || fallback.summary,
-      caption: parsed.caption || fallback.caption
-    };
-  } catch {
-    return fallback;
-  }
-}
 
 export async function GET() {
   const config = getAIConfig();
@@ -47,7 +31,8 @@ export async function GET() {
     maxReferenceImages: config.maxReferenceImages,
     imageSize: config.imageSize,
     imageQuality: config.imageQuality,
-    inputFidelity: config.inputFidelity
+    inputFidelity: config.inputFidelity,
+    hasQueueConfig: hasQueueConfig()
   });
 }
 
@@ -63,8 +48,6 @@ export async function POST(request: NextRequest) {
     const payload = JSON.parse(rawPayload) as RideFormData;
     const photos = formData.getAll("photos");
     const imageFiles = photos.filter((item): item is File => item instanceof File);
-    const file = imageFiles[0];
-    const content = await readExperienceContent();
     const normalizedPhone = normalizeBangladeshPhone(payload.phone);
     const verifiedUser = await findVerifiedUserByPhone(normalizedPhone);
 
@@ -77,8 +60,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const bundle = buildRidePromptBundle(payload, content);
-    const fallback = fallbackStoryText(payload, bundle);
+    if (!hasQueueConfig()) {
+      return NextResponse.json(
+        {
+          message: "Queue configuration is missing. Set AWS SQS environment variables first."
+        },
+        { status: 500 }
+      );
+    }
+
     const config = getAIConfig();
     const generationLogId = await createGenerationLog({
       userId: verifiedUser.id,
@@ -88,62 +78,32 @@ export async function POST(request: NextRequest) {
       provider: config.provider
     });
 
-    let imageUrl = createMockRideStoryImage(bundle.imagePrompt, payload.favoriteColor);
-    let summary = fallback.summary;
-    let caption = fallback.caption;
-    let providerError: string | null = null;
-    let imageGenerated = false;
+    const jobId = await createGenerationJob({
+      userId: verifiedUser.id,
+      phone: verifiedUser.phone,
+      generationLogId,
+      bikeType: payload.bikeType,
+      environment: payload.environment,
+      provider: config.provider,
+      model: config.imageModel,
+      payloadJson: JSON.stringify(payload)
+    });
 
-    if (hasUsableAIConfig(config)) {
-      try {
-        const provider = createAIProvider();
-
-        const [storyResult, imageResult] = await Promise.allSettled([
-          provider.generateText(bundle.storyPrompt),
-          provider.generateImage({ prompt: bundle.imagePrompt, image: file, images: imageFiles })
-        ]);
-
-        if (storyResult.status === "fulfilled") {
-          const story = parseStoryPayload(storyResult.value, fallback);
-          summary = story.summary;
-          caption = story.caption;
-        } else {
-          providerError = storyResult.reason instanceof Error ? storyResult.reason.message : "Text generation failed.";
-        }
-
-        if (imageResult.status === "fulfilled") {
-          imageUrl = imageResult.value;
-          imageGenerated = true;
-        } else if (!providerError) {
-          providerError = imageResult.reason instanceof Error ? imageResult.reason.message : "Image generation failed.";
-        }
-      } catch (error) {
-        providerError = error instanceof Error ? error.message : "Unexpected AI provider error.";
-      }
+    try {
+      await saveJobInputFiles(jobId, imageFiles);
+      const messageId = await enqueueGenerationJob(jobId);
+      await setGenerationJobQueueMessageId(jobId, messageId);
+      await createGenerationJobEvent(jobId, "queued", messageId || "Queued in AWS SQS.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not queue generation job.";
+      await createGenerationJobEvent(jobId, "queue_failed", message);
+      await failGenerationLog(generationLogId, message);
+      throw error;
     }
-
-    if (providerError && !imageGenerated) {
-      await failGenerationLog(generationLogId, providerError);
-    } else {
-      await completeGenerationLog(generationLogId);
-    }
-
-    const response: RideGenerationResponse = {
-      imageUrl,
-      summary,
-      caption,
-      prompt: bundle.imagePrompt,
-      profile: {
-        personalityTraits: bundle.personalityTraits,
-        emotionalTone: bundle.emotionalTone,
-        socialDynamic: bundle.socialDynamic,
-        sceneDirection: bundle.sceneDirection
-      }
-    };
 
     return NextResponse.json({
-      ...response,
-      providerError
+      ok: true,
+      jobId
     });
   } catch (error) {
     console.error("Generate route failed", error);

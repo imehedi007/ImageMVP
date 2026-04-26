@@ -134,7 +134,6 @@ export function BasicInfoStep({
               <input
                 type="file"
                 accept="image/*"
-                capture="user"
                 className="hidden"
                 onChange={(event) => onFileChange(event.target.files)}
               />

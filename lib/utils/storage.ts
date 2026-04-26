@@ -3,7 +3,7 @@ import { RideFormData, RideGenerationResponse } from "@/types";
 const STORAGE_KEY = "ride-story-result";
 const DRAFT_KEY = "ride-story-draft";
 const DB_NAME = "ride-story-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "results";
 const DRAFT_STORE_NAME = "drafts";
 
@@ -14,6 +14,8 @@ export interface RideDraft {
   currentStep: number;
   otpSent: boolean;
   otpVerified: boolean;
+  isGenerating?: boolean;
+  activeJobId?: number | null;
 }
 
 export async function saveRideResult(result: RideGenerationResponse) {

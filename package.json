@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "worker:generation": "node scripts/generation-worker.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1037.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "mysql2": "^3.22.2",
