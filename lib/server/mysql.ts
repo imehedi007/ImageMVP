@@ -164,12 +164,19 @@ export async function ensureDatabaseSchema() {
     )
   `);
 
-  await safeQuery<ResultSetHeader>(
-    `ALTER TABLE otp_requests ADD COLUMN IF NOT EXISTS blocked_until DATETIME NULL`
+  const [otpRequestsCols] = await safeQuery<RowDataPacket[]>(
+    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'otp_requests' AND column_name = 'blocked_until'`
   );
-  await safeQuery<ResultSetHeader>(
-    `ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS generation_log_id BIGINT UNSIGNED NULL AFTER phone`
+  if (otpRequestsCols[0].cnt === 0) {
+    await safeQuery<ResultSetHeader>(`ALTER TABLE otp_requests ADD COLUMN blocked_until DATETIME NULL`);
+  }
+
+  const [genJobsCols] = await safeQuery<RowDataPacket[]>(
+    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'generation_jobs' AND column_name = 'generation_log_id'`
   );
+  if (genJobsCols[0].cnt === 0) {
+    await safeQuery<ResultSetHeader>(`ALTER TABLE generation_jobs ADD COLUMN generation_log_id BIGINT UNSIGNED NULL AFTER phone`);
+  }
 
   schemaReady = true;
 }
