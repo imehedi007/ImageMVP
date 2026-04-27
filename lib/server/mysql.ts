@@ -141,6 +141,8 @@ export async function ensureDatabaseSchema() {
       queue_message_id VARCHAR(190) NULL,
       error_message TEXT NULL,
       payload_json JSON NULL,
+      input_images_json LONGTEXT NULL,
+      result_data_json LONGTEXT NULL,
       result_summary TEXT NULL,
       result_caption TEXT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -176,6 +178,20 @@ export async function ensureDatabaseSchema() {
   );
   if (genJobsCols[0].cnt === 0) {
     await safeQuery<ResultSetHeader>(`ALTER TABLE generation_jobs ADD COLUMN generation_log_id BIGINT UNSIGNED NULL AFTER phone`);
+  }
+
+  const [inputImagesCols] = await safeQuery<RowDataPacket[]>(
+    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'generation_jobs' AND column_name = 'input_images_json'`
+  );
+  if (inputImagesCols[0].cnt === 0) {
+    await safeQuery<ResultSetHeader>(`ALTER TABLE generation_jobs ADD COLUMN input_images_json LONGTEXT NULL AFTER payload_json`);
+  }
+
+  const [resultDataCols] = await safeQuery<RowDataPacket[]>(
+    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'generation_jobs' AND column_name = 'result_data_json'`
+  );
+  if (resultDataCols[0].cnt === 0) {
+    await safeQuery<ResultSetHeader>(`ALTER TABLE generation_jobs ADD COLUMN result_data_json LONGTEXT NULL AFTER input_images_json`);
   }
 
   schemaReady = true;
@@ -428,6 +444,32 @@ export async function createGenerationJobEvent(jobId: number, eventType: string,
     `INSERT INTO generation_job_events (job_id, event_type, message) VALUES (?, ?, ?)`,
     [jobId, eventType, message]
   );
+}
+
+export async function saveJobInputBlobs(jobId: number, inputImagesJson: string) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs SET input_images_json = ?, updated_at = NOW() WHERE id = ?`,
+    [inputImagesJson, jobId]
+  );
+}
+
+export async function saveJobResultBlob(jobId: number, resultDataJson: string) {
+  await ensureDatabaseSchema();
+  await safeQuery<ResultSetHeader>(
+    `UPDATE generation_jobs SET result_data_json = ?, updated_at = NOW() WHERE id = ?`,
+    [resultDataJson, jobId]
+  );
+}
+
+export async function getJobBlobs(jobId: number) {
+  await ensureDatabaseSchema();
+  const [rows] = await safeQuery<RowDataPacket[]>(
+    `SELECT input_images_json, result_data_json FROM generation_jobs WHERE id = ? LIMIT 1`,
+    [jobId]
+  );
+
+  return rows[0] as { input_images_json: string | null; result_data_json: string | null } | null;
 }
 
 export async function completeGenerationLog(id: number) {

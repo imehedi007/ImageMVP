@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
   queue_message_id VARCHAR(190) NULL,
   error_message TEXT NULL,
   payload_json JSON NULL,
+  input_images_json LONGTEXT NULL,
+  result_data_json LONGTEXT NULL,
   result_summary TEXT NULL,
   result_caption TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
